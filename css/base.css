@@ -1,0 +1,60 @@
+/* Reset and base typography. */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html { font-size: var(--base-size); -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font);
+  line-height: var(--line);
+  color: var(--text);
+  background: var(--bg);
+}
+
+h1, h2, h3 { line-height: 1.25; margin: 0 0 var(--space-3); font-weight: 650; }
+h1 { font-size: 1.6rem; }
+h2 { font-size: 1.2rem; }
+p { margin: 0 0 var(--space-3); }
+img { max-width: 100%; display: block; }
+
+a { color: var(--primary); text-underline-offset: 3px; }
+a:hover { color: var(--primary-hover); }
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+h1:focus { outline: none; }
+:root[data-focus-mode="on"] :focus-visible { outline-width: 4px; outline-offset: 3px; }
+
+.muted { color: var(--muted); }
+.block { display: block; }
+.lead { font-size: 1.1rem; }
+.pre-line { white-space: pre-line; }
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0);
+  white-space: nowrap; border: 0;
+}
+
+.skip-link {
+  position: absolute; left: var(--space-3); top: -100px;
+  background: var(--surface); padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-small); z-index: 100;
+}
+.skip-link:focus { top: var(--space-3); }
+
+.boot { display: grid; place-items: center; min-height: 100vh; color: var(--muted); }
+
+.icon {
+  width: 1.2em; height: 1.2em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}

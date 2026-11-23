@@ -1,0 +1,14 @@
+{
+  "name": "vintocentral",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Inventario de bienes de la Iglesia Adventista del Séptimo Día (HTML, JavaScript, CSS + Firebase).",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/dev-server.mjs",
+    "test": "node --test"
+  },
+  "volta": {
+    "node": "20.20.2"
+  }
+}

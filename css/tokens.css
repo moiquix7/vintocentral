@@ -1,0 +1,122 @@
+/*
+ * Design tokens.
+ * - Theme: html[data-theme="light" | "dark"] (set by preferences.js / the inline script in index.html).
+ * - Palette: html[data-palette="teal" | "sage" | "lavender" | "terracotta" | "sky"] — soft colors
+ *   applied to buttons, links, labels, focus ring and accents. White text on --primary is ≥ 5:1 (AA).
+ */
+
+/* ---------- Neutral light base ---------- */
+:root {
+  --bg: #f4f5f1;
+  --surface: #ffffff;
+  --surface-alt: #eef1ec;
+  --border: #d9ded6;
+  --text: #2b2f33;
+  --muted: #5b6268;
+  --on-primary: #ffffff;
+  --danger: #a3403d;
+  --danger-soft: #f7e6e5;
+  --success: #2f7350;
+  --success-soft: #e3f1e8;
+  --warn: #8a6516;
+  --warn-soft: #f8efd9;
+  --info-soft: #e5edf6;
+  --focus: #c27c0e;
+  --login-overlay: rgb(244 245 241 / 42%);
+
+  /* palette: teal (default) */
+  --primary: #2f6f7e;
+  --primary-hover: #275d69;
+  --primary-soft: #e3eff1;
+  --accent: #7fa88f;
+  --label: #2a5561;
+
+  --radius: 12px;
+  --radius-small: 8px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --shadow: 0 1px 2px rgb(30 40 35 / 6%), 0 2px 8px rgb(30 40 35 / 5%);
+  --font: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --base-size: 17px;
+  --line: 1.55;
+  --touch: 44px;
+  --motion: 160ms;
+  color-scheme: light;
+}
+
+:root[data-palette="sage"]       { --primary: #4a7356; --primary-hover: #3e6149; --primary-soft: #e6efe7; --accent: #9dbb8f; --label: #3b5c44; --bg: #f3f5f0; }
+:root[data-palette="lavender"]   { --primary: #6a5a9c; --primary-hover: #5a4c86; --primary-soft: #eeebf6; --accent: #b3a6d6; --label: #534679; --bg: #f6f5f9; }
+:root[data-palette="terracotta"] { --primary: #9c5246; --primary-hover: #85453b; --primary-soft: #f6e9e5; --accent: #d6a48f; --label: #7a4037; --bg: #f8f4f1; }
+:root[data-palette="sky"]        { --primary: #3a6ea5; --primary-hover: #305c8b; --primary-soft: #e5eef7; --accent: #8fb4d9; --label: #2f5884; --bg: #f3f6f9; }
+
+/* ---------- Dark theme ---------- */
+:root[data-theme="dark"] {
+  --bg: #1c2124;
+  --surface: #252b2f;
+  --surface-alt: #2c3337;
+  --border: #3a4348;
+  --text: #e4e7e4;
+  --muted: #a9b1b5;
+  --on-primary: #14191c;
+  --danger: #e39a96;
+  --danger-soft: #3d2827;
+  --success: #8fcfa9;
+  --success-soft: #243a2e;
+  --warn: #e2c27a;
+  --warn-soft: #3b3322;
+  --info-soft: #26323d;
+  --focus: #f0b45a;
+  --shadow: none;
+  --login-overlay: rgb(20 25 28 / 58%);
+
+  --primary: #8cc3cf;
+  --primary-hover: #a5d2db;
+  --primary-soft: #2a3d42;
+  --accent: #8db89d;
+  --label: #a9d3dc;
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"][data-palette="sage"]       { --primary: #a3c9a8; --primary-hover: #b8d8bc; --primary-soft: #2d3d31; --accent: #a3c08f; --label: #bcdcc0; }
+:root[data-theme="dark"][data-palette="lavender"]   { --primary: #bdb2e3; --primary-hover: #cfc7ec; --primary-soft: #36324a; --accent: #a99bd6; --label: #d2cbef; }
+:root[data-theme="dark"][data-palette="terracotta"] { --primary: #e4ab9f; --primary-hover: #ecc0b6; --primary-soft: #45302b; --accent: #d39a83; --label: #f0c6bc; }
+:root[data-theme="dark"][data-palette="sky"]        { --primary: #9fc4ea; --primary-hover: #b7d4f1; --primary-soft: #283a4d; --accent: #86abd3; --label: #bcd6f2; }
+
+/* Without JavaScript, follow the device. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #1c2124; --surface: #252b2f; --surface-alt: #2c3337; --border: #3a4348;
+    --text: #e4e7e4; --muted: #a9b1b5; --primary: #8cc3cf; --on-primary: #14191c;
+    color-scheme: dark;
+  }
+}
+
+/* Swatch previews always show the light-theme color of each palette. */
+.swatch[data-swatch="teal"]       { background: #2f6f7e; }
+.swatch[data-swatch="sage"]       { background: #4a7356; }
+.swatch[data-swatch="lavender"]   { background: #6a5a9c; }
+.swatch[data-swatch="terracotta"] { background: #9c5246; }
+.swatch[data-swatch="sky"]        { background: #3a6ea5; }
+
+/* ---------- Text size (for older users) ---------- */
+:root[data-font-scale="large"] { --base-size: 19px; }
+:root[data-font-scale="xlarge"] { --base-size: 21px; }
+
+/* ---------- Focus mode (ADHD-friendly): calmer, roomier, no motion ---------- */
+:root[data-focus-mode="on"] {
+  --line: 1.7;
+  --space-4: 1.25rem;
+  --space-5: 1.9rem;
+  --space-6: 2.5rem;
+  --touch: 52px;
+  --motion: 0ms;
+  --shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --motion: 0ms; }
+}
