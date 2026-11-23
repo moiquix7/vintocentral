@@ -48,7 +48,7 @@ export const LIMITS = Object.freeze({
     maxValue: 1_000_000_000,
     maxQuantity: 100_000,
   },
-  catalog: { name: 60, description: 200 },
+  catalog: { name: 60, description: 200, leader: 80, maxLeaders: 30, firstYear: 1950 },
   user: { email: 254, displayName: 80, minPassword: 8, maxPassword: 128, usernameMin: 3, usernameMax: 30 },
   image: { maxInputBytes: 20 * 1024 * 1024, maxSide: 1600, quality: 0.8 },
   profileImage: { maxSide: 512, quality: 0.85 },

@@ -10,6 +10,7 @@
       "scripts/**",
       "*.rules",
       "firestore.indexes.json",
+      "storage-cors.json",
       "package.json",
       "*.md"
     ],

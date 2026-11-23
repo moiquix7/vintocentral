@@ -65,7 +65,25 @@ The collection keeps its technical name `categories`; only the interface calls i
 |-------|------|-------|
 | `name` | string | 1–60, unique (case-insensitive, checked by the app) |
 | `description` | string | 0–200 |
+| `leaders` | `{ name, from, to }[]` | **departments only**, max 30 — leader history (see below) |
 | `createdAt`, `updatedAt`, `updatedBy` | | stamps |
+
+`leaders` items (validated by `catalog.model.js`; the rules check the list type and size):
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `name` | string | 1–80 |
+| `from` | int | year the term (*gestión*) started, 1950 … next year |
+| `to` | int \| null | year it ended (≥ `from`); `null` = still leading ("Actualidad") |
+
+Stored sorted: current leaders first, then by `from` descending. The UI picks years from dropdowns.
+
+`locations` documents never have `leaders` (rules: `validCatalog`); `categories` documents always
+have it, possibly empty (rules: `validDepartment`).
+
+Legacy: a short-lived version stored a single `leader` + `term` (`"2026"` / `"2025-2026"`). The app
+still reads them as a one-item history, and the first edit replaces them with `leaders` (the old
+fields are deleted).
 
 A category or location cannot be deleted while an asset uses it.
 

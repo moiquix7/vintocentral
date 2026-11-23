@@ -60,6 +60,23 @@ email, role, temporary password); each person can change their password and phot
 
 Whenever `firestore.rules` or `storage.rules` change, publish them again (CLI or paste in the console).
 
+## 4b. Photos in PDF reports — enable CORS on the bucket (required, one time)
+
+`<img>` tags can show Storage photos without CORS, but the PDF report has to *download* each photo
+(`fetch`), and Firebase Storage only allows that when the bucket has a CORS policy. Without it the
+report comes out with "—" instead of photos and the app says CORS is missing.
+
+1. Open https://console.cloud.google.com/?project=db-vintocentral (same Google account as Firebase).
+2. Click the **Activate Cloud Shell** button (`>_`, top right) and wait for the terminal.
+3. Paste and run (it writes the same policy as `storage-cors.json` and applies it):
+
+```bash
+echo '[{"origin":["http://localhost:8080","https://moiquix7.github.io","https://db-vintocentral.web.app","https://db-vintocentral.firebaseapp.com"],"method":["GET"],"maxAgeSeconds":3600}]' > cors.json && gcloud storage buckets update gs://db-vintocentral.firebasestorage.app --cors-file=cors.json && gcloud storage buckets describe gs://db-vintocentral.firebasestorage.app --format="default(cors_config)"
+```
+
+The last command prints the policy so you can confirm it was saved. Add any new site address
+(e.g. a custom domain) to `origin` and run it again.
+
 ## 5. GitHub Pages
 
 1. GitHub → repository **Settings → Pages → Build and deployment → Source: GitHub Actions**.

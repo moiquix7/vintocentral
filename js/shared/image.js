@@ -61,6 +61,42 @@ function loadImageElement(file) {
   });
 }
 
+/**
+ * Downloads an image and returns it as a square JPEG data URL (center crop), e.g. for a PDF.
+ * The server must allow CORS (Firebase Storage download URLs do).
+ * @param {string} url
+ * @param {{ size?: number, quality?: number }} [options]
+ * @returns {Promise<string>} "data:image/jpeg;base64,..."
+ */
+export async function loadSquareThumbnail(url, { size = 240, quality = 0.75 } = {}) {
+  let response;
+  try {
+    response = await fetch(url, { mode: 'cors', credentials: 'omit' });
+  } catch (cause) {
+    // fetch() rejects with a TypeError when the server does not allow CORS (or there is no network).
+    const code = navigator.onLine === false ? 'app/image-offline' : 'app/image-blocked';
+    throw new AppError('No se pudo descargar la foto.', { code, cause });
+  }
+  if (!response.ok) {
+    throw new AppError('No se pudo descargar la foto.', { code: `app/image-http-${response.status}` });
+  }
+  const source = await decode(await response.blob());
+  try {
+    const side = Math.min(source.width, source.height);
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext('2d');
+    if (!context) throw new AppError('Su navegador no puede procesar imágenes.');
+    context.fillStyle = '#ffffff'; // transparent PNGs become white, not black, in JPEG
+    context.fillRect(0, 0, size, size);
+    context.drawImage(source, (source.width - side) / 2, (source.height - side) / 2, side, side, 0, 0, size, size);
+    return canvas.toDataURL('image/jpeg', quality);
+  } finally {
+    source.close?.();
+  }
+}
+
 export function canvasToJpeg(canvas, quality = LIMITS.image.quality) {
   return new Promise((resolve, reject) => {
     canvas.toBlob(

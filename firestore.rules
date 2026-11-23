@@ -134,7 +134,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ---------- Catalogs: categories (UI: "Departamentos") and locations ----------
+    // ---------- Catalogs: locations (validCatalog) and categories = "Departamentos" (validDepartment) ----------
     function validCatalog(data) {
       return data.keys().hasOnly(['name', 'description', 'createdAt', 'updatedAt', 'updatedBy'])
         && data.keys().hasAll(['name', 'description', 'createdAt', 'updatedAt', 'updatedBy'])
@@ -143,10 +143,21 @@ service cloud.firestore {
         && stamped(data);
     }
 
+    // Departments: same as a catalog plus the leader history [{ name, from, to }] (max 30 entries;
+    // each entry is validated by catalog.model.js — rules cannot loop over a list).
+    function validDepartment(data) {
+      return data.keys().hasOnly(['name', 'description', 'leaders', 'createdAt', 'updatedAt', 'updatedBy'])
+        && data.keys().hasAll(['name', 'description', 'leaders', 'createdAt', 'updatedAt', 'updatedBy'])
+        && isText(data.name, 1, 60)
+        && isText(data.description, 0, 200)
+        && data.leaders is list && data.leaders.size() <= 30
+        && stamped(data);
+    }
+
     match /categories/{id} {
       allow read: if canRead();
-      allow create: if canEdit() && validCatalog(request.resource.data) && request.resource.data.createdAt == request.time;
-      allow update: if canEdit() && validCatalog(request.resource.data) && request.resource.data.createdAt == resource.data.createdAt;
+      allow create: if canEdit() && validDepartment(request.resource.data) && request.resource.data.createdAt == request.time;
+      allow update: if canEdit() && validDepartment(request.resource.data) && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if canEdit();
     }
 
