@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// Asset photos: assets/{assetId}/{file}; profile photos: profiles/{uid}/{file}.
+// Roles are read from Firestore users/{uid}.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function profile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+    function hasActiveProfile() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && profile().active == true;
+    }
+    function canEdit() {
+      return hasActiveProfile() && profile().role in ['admin', 'editor'];
+    }
+
+    match /assets/{assetId}/{fileName} {
+      allow read: if hasActiveProfile();
+      allow create: if canEdit()
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow delete: if canEdit();
+    }
+
+    // Profile photos: only the owner writes; any active user can see them.
+    match /profiles/{uid}/{fileName} {
+      allow read: if hasActiveProfile();
+      allow create: if request.auth != null && request.auth.uid == uid && hasActiveProfile()
+        && request.resource.size <= 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

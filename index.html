@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Inventario de bienes de la Iglesia Adventista del Séptimo Día" />
+    <meta name="theme-color" content="#2f6f7e" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <title>IASD Vinto Central - Inventario</title>
+    <link rel="icon" href="static/img/logo-iasd.png" type="image/png" />
+    <link rel="apple-touch-icon" href="static/img/logo-iasd.png" />
+    <script>
+      // Apply saved appearance before the first paint (no flash of the wrong theme/colors).
+      // Same storage key and values as js/core/preferences.js.
+      (function () {
+        var root = document.documentElement;
+        var prefs = {};
+        try { prefs = JSON.parse(localStorage.getItem('vintocentral.preferences') || '{}') || {}; } catch (e) { prefs = {}; }
+        var dark = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
+        var theme = prefs.theme === 'light' || prefs.theme === 'dark' ? prefs.theme : (dark ? 'dark' : 'light');
+        var palettes = ['teal', 'sage', 'lavender', 'terracotta', 'sky'];
+        root.setAttribute('data-theme', theme);
+        root.setAttribute('data-palette', palettes.indexOf(prefs.palette) >= 0 ? prefs.palette : 'teal');
+        root.setAttribute('data-focus-mode', prefs.focusMode === true ? 'on' : 'off');
+        root.setAttribute('data-font-scale', ['large', 'xlarge'].indexOf(prefs.fontScale) >= 0 ? prefs.fontScale : 'normal');
+      })();
+    </script>
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/layout.css" />
+    <link rel="stylesheet" href="css/components.css" />
+    <script type="module" src="js/main.js"></script>
+  </head>
+  <body>
+    <div id="app" aria-busy="true">
+      <p class="boot">Cargando…</p>
+    </div>
+    <div id="toasts" class="toast-region" aria-live="polite"></div>
+    <noscript>
+      <p class="boot">Esta aplicación necesita JavaScript. Actívelo en su navegador.</p>
+    </noscript>
+  </body>
+</html>

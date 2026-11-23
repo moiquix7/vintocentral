@@ -1,0 +1,165 @@
+rules_version = '2';
+
+// Field lists and limits must match js/config/app-config.js and the *.model.js files.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Identity and roles ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+    function profilePath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+    function hasActiveProfile() {
+      return signedIn() && exists(profilePath()) && get(profilePath()).data.active == true;
+    }
+    function hasRole(roles) {
+      return hasActiveProfile() && get(profilePath()).data.role in roles;
+    }
+    function canRead()  { return hasActiveProfile(); }
+    function canEdit()  { return hasRole(['admin', 'editor']); }
+    function isAdmin()  { return hasRole(['admin']); }
+
+    // ---------- Helpers ----------
+    function isText(value, min, max) {
+      return value is string && value.size() >= min && value.size() <= max;
+    }
+    function stamped(data) {
+      return data.updatedBy == request.auth.uid && data.updatedAt == request.time;
+    }
+
+    // ---------- Users ----------
+    function validUsername(name) {
+      return name is string && name.matches('^[a-z0-9._-]{3,30}$');
+    }
+    function usernameOwnedBy(name, uid) {
+      return getAfter(/databases/$(database)/documents/usernames/$(name)).data.uid == uid;
+    }
+    function validPhoto(data, uid) {
+      return (!('photoUrl' in data) || isText(data.photoUrl, 0, 2000))
+        && (!('photoPath' in data) || data.photoPath == ''
+            || (data.photoPath is string && data.photoPath.matches('profiles/' + uid + '/[^/]+')));
+    }
+    function validUser(data, uid) {
+      return data.keys().hasOnly(['email', 'username', 'displayName', 'role', 'active', 'photoUrl', 'photoPath',
+                                  'createdAt', 'updatedAt', 'updatedBy'])
+        && data.keys().hasAll(['email', 'displayName', 'role', 'active', 'createdAt', 'updatedAt', 'updatedBy'])
+        && isText(data.email, 3, 254)
+        && (!('username' in data) || validUsername(data.username))
+        && isText(data.displayName, 1, 80)
+        && data.role in ['admin', 'editor', 'viewer']
+        && data.active is bool
+        && data.createdAt is timestamp
+        && validPhoto(data, uid)
+        && stamped(data);
+    }
+    // A user may edit only their own name, username and photo — never role or active.
+    function validSelfUpdate(uid) {
+      let data = request.resource.data;
+      let changed = data.diff(resource.data).affectedKeys();
+      return signedIn() && request.auth.uid == uid && hasActiveProfile()
+        && changed.hasOnly(['displayName', 'username', 'photoUrl', 'photoPath', 'updatedAt', 'updatedBy'])
+        && isText(data.displayName, 1, 80)
+        && (!('username' in changed) || (validUsername(data.username) && usernameOwnedBy(data.username, uid)))
+        && validPhoto(data, uid)
+        && stamped(data);
+    }
+
+    match /users/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
+      allow create: if isAdmin() && validUser(request.resource.data, uid)
+        && 'username' in request.resource.data
+        && usernameOwnedBy(request.resource.data.username, uid)
+        && request.resource.data.createdAt == request.time;
+      // Anyone: may edit their own profile fields (validSelfUpdate).
+      // Admin: may change others' role/active. An admin cannot demote or deactivate themselves.
+      allow update: if validSelfUpdate(uid)
+        || (isAdmin() && validUser(request.resource.data, uid)
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.email == resource.data.email
+            && request.resource.data.get('username', '') == resource.data.get('username', '')
+            && !(uid == request.auth.uid
+                 && (request.resource.data.role != 'admin' || request.resource.data.active != true)));
+      allow delete: if false;
+    }
+
+    // ---------- Usernames (login lookup index) ----------
+    // get is public so the login page can resolve username → email; list is denied (no enumeration).
+    match /usernames/{name} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if validUsername(name)
+        && request.resource.data.keys().hasOnly(['uid', 'email'])
+        && request.resource.data.keys().hasAll(['uid', 'email'])
+        && isText(request.resource.data.email, 3, 254)
+        && (isAdmin()
+            || (hasActiveProfile()
+                && request.resource.data.uid == request.auth.uid
+                && request.resource.data.email == request.auth.token.email));
+      allow update: if false;
+      allow delete: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // ---------- Assets ----------
+    function validAsset(data) {
+      return data.keys().hasOnly(['code', 'name', 'description', 'categoryId', 'locationId', 'condition',
+                                  'tags', 'acquisitionDate', 'value', 'quantity', 'photos',
+                                  'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+        && data.keys().hasAll(['code', 'name', 'description', 'categoryId', 'locationId', 'condition',
+                               'tags', 'acquisitionDate', 'value', 'quantity', 'photos',
+                               'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+        && isText(data.code, 0, 30)
+        && isText(data.name, 1, 120)
+        && isText(data.description, 0, 500)
+        && isText(data.categoryId, 1, 64)
+        && isText(data.locationId, 1, 64)
+        && data.condition in ['new', 'good', 'fair', 'poor', 'out_of_service']
+        && data.tags is list && data.tags.size() <= 10
+        && isText(data.acquisitionDate, 0, 10)
+        && data.value is number && data.value >= 0 && data.value <= 1000000000
+        && data.quantity is int && data.quantity >= 1 && data.quantity <= 100000
+        && data.photos is list && data.photos.size() <= 4
+        && stamped(data);
+    }
+
+    match /assets/{assetId} {
+      allow read: if canRead();
+      allow create: if canEdit() && validAsset(request.resource.data)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update: if canEdit() && validAsset(request.resource.data)
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Catalogs: categories (UI: "Departamentos") and locations ----------
+    function validCatalog(data) {
+      return data.keys().hasOnly(['name', 'description', 'createdAt', 'updatedAt', 'updatedBy'])
+        && data.keys().hasAll(['name', 'description', 'createdAt', 'updatedAt', 'updatedBy'])
+        && isText(data.name, 1, 60)
+        && isText(data.description, 0, 200)
+        && stamped(data);
+    }
+
+    match /categories/{id} {
+      allow read: if canRead();
+      allow create: if canEdit() && validCatalog(request.resource.data) && request.resource.data.createdAt == request.time;
+      allow update: if canEdit() && validCatalog(request.resource.data) && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if canEdit();
+    }
+
+    match /locations/{id} {
+      allow read: if canRead();
+      allow create: if canEdit() && validCatalog(request.resource.data) && request.resource.data.createdAt == request.time;
+      allow update: if canEdit() && validCatalog(request.resource.data) && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if canEdit();
+    }
+
+    // Everything else is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

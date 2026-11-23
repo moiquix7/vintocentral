@@ -28,6 +28,7 @@ A web developer senior with 25 years the experience.
  - Don't allow excess data.
   - every error, must be controlled.
  - if the route does not exist, make callback to the login page.
+ - build a yml file to deploy the application in github page, and configure the firebase.json file to allow the SPA to work properly.
 
 ## Architecture
 modular architecture
@@ -36,7 +37,7 @@ modular architecture
 Web
 
 ## Technology Stack 
-Angular, typescript,css, firebase, firebase authentication, firebase firestore, firebase storage.
+HTML, JavaScript,css, firebase, firebase authentication, firebase firestore, firebase storage.
 
 ## INTERFACE STYLE
 - soft colors, simple
@@ -64,17 +65,24 @@ The target church is Adventist Seventh Day Church, and the application is design
 
 ## Current state
 
-Angular 21 SPA (standalone components, signals, zoneless, Vitest). Node 20.20.2 is pinned with Volta
-(the machine default is Node 14, which is too old; Volta switches automatically inside this folder).
+Static SPA in plain HTML + JavaScript (ES modules, no build step) + CSS, with Firebase Auth / Firestore /
+Storage loaded from the CDN (version pinned only in `js/core/firebase.js`). Hash routing (`#/path`).
+Node 20.20.2 is pinned with Volta (the machine default is Node 14, which is too old; Volta switches
+automatically inside this folder) and is used only for the dev server and tests.
+
+Read `docs/architecture.md` (layers, module rules), `docs/data-model.md` (collections, limits) and
+`docs/deployment.md` (Firebase setup, first admin, GitHub Pages) before changing code.
+Field lists/limits live in three places that must stay in sync: `js/config/app-config.js`,
+the `*.model.js` files, and `firestore.rules` / `storage.rules`.
 
 ### Commands
-- Install: `npm install`
-- Dev server: `npm start` (http://localhost:4200; also starts the data server on 4300 that `/api` is proxied to)
-- Build: `npm run build` (production, output in `dist/vintocentral`); host it with `node server/index.mjs` (port 8080)
-- Desktop: `npm run desktop` (run) / `npm run dist:desktop` (installer `release/vintocentral-Setup-<version>.exe`) /
-  `npm run dist:desktop:portable` (portable .exe); icon from `public/logo.svg` via `npm run icon:desktop`
-- All tests: `npx ng test --watch=false`; server tests: `npm run test:server`
-- Single test file: `npx ng test --watch=false --include src/app/shared/utils/it-number.spec.ts`
-- No linter is configured yet; `ng build` runs strict TypeScript + strict template checks.
+- Dev server: `npm start` (http://localhost:8080)
+- All tests: `npm test` (node --test, pure modules only)
+- Single test file: `node --test tests/asset.model.test.js`
+- Deploy rules: `firebase deploy --only firestore:rules,firestore:indexes,storage`
+- Deploy site: push to `main` (GitHub Actions → Pages) or `firebase deploy --only hosting`
 
+### Repository and Database 
+url firebase: https://console.firebase.google.com/project/db-vintocentral
+repository: https://github.com/moiquix7/vintocentral
 
