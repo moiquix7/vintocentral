@@ -41,8 +41,8 @@ Rules that keep **high cohesion / low coupling**:
 | `profile` | `#/profile` (name, username, photo, password) | any signed-in user |
 | `dashboard` | `#/dashboard` | `assets.read` |
 | `assets` | `#/assets`, `#/assets/new`, `#/assets/:id`, `#/assets/:id/edit` | read / `assets.write` |
-| `catalogs` | `#/catalogs` (departments — stored as `categories` — and locations) | `catalogs.write` |
-| `reports` | `#/reports` (PDF) | `reports.view` |
+| `catalogs` | `#/catalogs` (departments — stored as `categories`, with leader history — and locations) | `catalogs.write` |
+| `reports` | `#/reports` (PDF, optionally with the first photo of each asset) | `reports.view` |
 | `users` | `#/users` | `users.manage` |
 | `layout` | application shell (header, navigation, preferences) | — |
 
@@ -75,6 +75,19 @@ rules enforce it** (`firestore.rules`, `storage.rules`) — the UI is never the 
 - Services throw `AppError`/`ValidationError`; views catch them and show a toast or inline field errors.
 - Global `error` and `unhandledrejection` handlers catch anything that escaped.
 - Startup failures (no network, Firebase not configured) show a dedicated screen instead of a blank page.
+
+## PDF report with photos
+
+- jsPDF + AutoTable are loaded from cdnjs only when a report is generated.
+- With "Incluir fotos" checked, the first photo of each asset is downloaded (`fetch`, 4 at a time,
+  progress shown on the button), center-cropped to a 240 px square JPEG and drawn in the first
+  column. Rows are taller so the photo fits.
+- A photo that cannot be downloaded never stops the report: its cell shows "—" and the user is told
+  how many were left out.
+- Downloading requires a **CORS policy on the bucket** (`storage-cors.json`, docs/deployment.md 4b):
+  without it Storage returns photos without `Access-Control-Allow-Origin` and `fetch` fails with a
+  network `TypeError`. The app reports that case separately (code `app/image-blocked`) so the message
+  names the real cause.
 
 ## "Don't allow excess data"
 

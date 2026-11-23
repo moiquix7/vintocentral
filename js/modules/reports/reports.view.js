@@ -1,4 +1,4 @@
-/** Reports page: choose filters, preview the count, download the PDF. */
+/** Reports page: choose filters (and whether to include photos), preview the count, download the PDF. */
 import { h, icon, mount, pageHeader } from '../../core/dom.js';
 import { session } from '../../core/session.js';
 import { notify, handleError } from '../../core/notify.js';
@@ -14,14 +14,28 @@ function options(store) {
   return Object.fromEntries(store.getAll().map((item) => [item.id, item.name]));
 }
 
+function photoOutcomeMessage({ failedPhotos, blockedPhotos, totalPhotos }) {
+  if (!failedPhotos) return null;
+  if (blockedPhotos) {
+    return 'El reporte salió sin fotos porque Firebase Storage todavía no permite descargarlas (falta configurar CORS). El administrador debe hacerlo una sola vez: docs/deployment.md, paso 4b.';
+  }
+  if (failedPhotos === totalPhotos) {
+    return 'El reporte se descargó sin fotos: no se pudieron descargar. Revise su conexión e intente de nuevo.';
+  }
+  return `El reporte se descargó, pero ${failedPhotos} de ${totalPhotos} fotos no se pudieron incluir (aparecen con "—").`;
+}
+
 export async function render(container) {
   await Promise.all([assetStore.whenReady(), categoryStore.whenReady(), locationStore.whenReady()]);
 
   const category = select(options(categoryStore), { placeholder: 'Todos' });
   const place = select(options(locationStore), { placeholder: 'Todas' });
   const condition = select(CONDITIONS, { placeholder: 'Todos' });
+  const includePhotos = h('input', { type: 'checkbox', class: 'switch', id: 'report-photos', checked: true });
   const preview = h('p', { class: 'lead', role: 'status' });
-  const generate = h('button', { type: 'button', class: 'btn btn-primary' }, icon('download'), 'Descargar PDF');
+  const generate = h('button', { type: 'button', class: 'btn btn-primary' });
+  const setButtonLabel = (text) => generate.replaceChildren(icon('download'), text);
+  setButtonLabel('Descargar PDF');
 
   const currentFilters = () => ({
     ...EMPTY_FILTERS,
@@ -38,27 +52,38 @@ export async function render(container) {
     ].filter(Boolean);
     return parts.length ? parts.join(' · ') : 'Todos los bienes';
   };
+  let busy = false;
   const updatePreview = () => {
-    const count = selection().length;
-    preview.textContent = `El reporte incluirá ${formatNumber(count)} bien${count === 1 ? '' : 'es'}.`;
-    generate.disabled = count === 0;
+    const assets = selection();
+    const withPhoto = assets.filter((asset) => asset.photos?.[0]?.url).length;
+    const photoNote = includePhotos.checked && withPhoto ? `, ${formatNumber(withPhoto)} con foto` : '';
+    preview.textContent = `El reporte incluirá ${formatNumber(assets.length)} bien${assets.length === 1 ? '' : 'es'}${photoNote}.`;
+    generate.disabled = busy || assets.length === 0;
   };
 
-  [category, place, condition].forEach((control) => control.addEventListener('change', updatePreview));
+  [category, place, condition, includePhotos].forEach((control) => control.addEventListener('change', updatePreview));
 
   generate.addEventListener('click', async () => {
+    busy = true;
     generate.disabled = true;
+    setButtonLabel('Preparando…');
     try {
-      await generateInventoryPdf({
+      const outcome = await generateInventoryPdf({
         assets: selection(),
         lookups: catalogLookups,
         filterSummary: describeFilters(),
         generatedBy: session.profile.displayName,
+        includePhotos: includePhotos.checked,
+        onProgress: (done, total) => total && setButtonLabel(`Preparando fotos ${done} de ${total}…`),
       });
-      notify.success('Reporte descargado.');
+      const warning = photoOutcomeMessage(outcome);
+      if (warning) notify.info(warning);
+      else notify.success('Reporte descargado.');
     } catch (error) {
       handleError(error, 'pdf report');
     } finally {
+      busy = false;
+      setButtonLabel('Descargar PDF');
       updatePreview();
     }
   });
@@ -74,6 +99,12 @@ export async function render(container) {
       field({ label: 'Departamento', name: 'categoryId', control: category }),
       field({ label: 'Ubicación', name: 'locationId', control: place }),
       field({ label: 'Estado', name: 'condition', control: condition }),
+      h(
+        'div',
+        { class: 'pref-row' },
+        h('label', { class: 'switch-label', for: 'report-photos' }, includePhotos, 'Incluir fotos'),
+        h('p', { class: 'hint' }, 'Muestra la primera foto de cada bien. Tarda un poco más.'),
+      ),
       h('div', { class: 'field--wide stack' }, preview, h('div', { class: 'button-row' }, generate)),
     ),
   );

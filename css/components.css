@@ -208,6 +208,30 @@ input:hover, select:hover, textarea:hover { border-color: var(--muted); }
 
 /* Catalog item lists */
 .item-list { list-style: none; padding: 0; margin: var(--space-4) 0 0; }
+.leader-line { color: var(--label); font-weight: 600; }
+.leader-history { margin-top: var(--space-1); font-size: 0.9rem; }
+.leader-history summary { cursor: pointer; color: var(--primary); min-height: 36px; display: inline-flex; align-items: center; }
+.leader-history ol { margin: var(--space-1) 0 0; padding-left: 1.4rem; }
+.field-label { font-weight: 600; color: var(--label); }
+
+/* Leader history editor: name on its own line, then Desde / Hasta / Quitar. */
+.leaders-editor { display: grid; gap: var(--space-3); justify-items: start; text-align: left; }
+.leader-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); width: 100%; }
+.leader-row {
+  display: grid; gap: var(--space-2) var(--space-3);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  padding: var(--space-3); border: 1px solid var(--border); border-left: 4px solid var(--accent);
+  border-radius: var(--radius-small); background: var(--surface-alt);
+}
+.leader-row label { display: grid; gap: var(--space-1); font-weight: 600; color: var(--label); }
+.leader-row label span { font-size: 0.9rem; }
+.leader-title, .leader-name { grid-column: 1 / -1; }
+.leader-title { font-weight: 700; color: var(--primary); }
+@media (max-width: 480px) {
+  .leader-row { grid-template-columns: 1fr 1fr; }
+  .leader-row .btn { grid-column: 1 / -1; }
+}
 .item-list li { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
 
 /* KPIs and bar charts */
