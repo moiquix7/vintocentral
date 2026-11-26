@@ -104,11 +104,16 @@ Photos are resized in the browser (max 1600 px, JPEG) before upload.
 
 - Logo: one file, path in `APP.logo` (`js/config/app-config.js`) and the favicon in `index.html`.
 - Login page: church photo background (`static/img/login-bg.jpg`) under a soft overlay.
+  Follows "don't make me think": logo, `h1` with the church name (`APP.churchFullName`),
+  subtitle with the system name (`APP.systemName`), two fields with a leading icon (user, lock),
+  a show/hide-password eye button inside the password field, one primary button and the
+  "¿Olvidó su contraseña?" link. No appearance options on this page.
 - **User menu** (avatar button in the header): Mi perfil, appearance, focus mode, text size, Salir.
 - **Theme**: Sistema / Claro / Oscuro. **Palette**: five soft palettes (teal, salvia, lavanda,
   terracota, cielo); each sets `--primary*`, `--accent`, `--label`, `--bg` for light and dark, all
   with AA contrast. Buttons, links, labels and focus rings take their color from these tokens.
-- Appearance is chosen in the user menu **or on the login page** and applies everywhere at once.
+- Appearance is chosen in the user menu (or Mi perfil) and applies everywhere at once; the login
+  page uses the preferences already saved in the browser.
 - **Focus mode (ADHD-friendly)**: larger spacing, no animations, stronger focus ring, one column,
   cards instead of tables, secondary information hidden.
 - **Text size**: normal / large / extra large (for older users).

@@ -2,16 +2,19 @@
  * Accessible form building blocks: labelled fields with hint and inline error,
  * plus helpers to show/clear validation errors.
  */
-import { h } from '../core/dom.js';
+import { h, icon as svgIcon } from '../core/dom.js';
 import { ValidationError } from '../core/errors.js';
 import { notify, handleError } from '../core/notify.js';
 
 let fieldCounter = 0;
 
 /**
- * @param {{ label: string, name: string, control: HTMLElement, hint?: string, required?: boolean, wide?: boolean }} options
+ * @param {{ label: string, name: string, control: HTMLElement, hint?: string, required?: boolean, wide?: boolean,
+ *   icon?: string, action?: HTMLElement }} options
+ *   icon: name of a dom.js icon shown inside the control, on the left;
+ *   action: small button shown inside the control, on the right (e.g. show password).
  */
-export function field({ label, name, control, hint, required = false, wide = false }) {
+export function field({ label, name, control, hint, required = false, wide = false, icon, action }) {
   const id = `f-${name}-${++fieldCounter}`;
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
@@ -24,9 +27,14 @@ export function field({ label, name, control, hint, required = false, wide = fal
     { class: `field${wide ? ' field--wide' : ''}`, dataset: { field: name } },
     h('label', { for: id }, label, required ? h('span', { class: 'required', 'aria-hidden': 'true' }, ' *') : null),
     hint ? h('p', { class: 'hint', id: hintId }, hint) : null,
-    control,
+    icon || action ? decorate(control, icon, action) : control,
     h('p', { class: 'field-error', id: errorId, hidden: true }),
   );
+}
+
+function decorate(control, icon, action) {
+  const classes = ['input-addon', icon ? 'input-addon--icon' : '', action ? 'input-addon--action' : ''];
+  return h('div', { class: classes.filter(Boolean).join(' ') }, icon ? svgIcon(icon) : null, control, action ?? null);
 }
 
 export function input(props = {}) {

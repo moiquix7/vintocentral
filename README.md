@@ -11,7 +11,7 @@ Storage. No build step.
 - Assets: create, edit, delete (admin), search, filter by department / location / condition, sort.
 - Departments and locations catalogs; free tags per asset.
 - User menu: **Mi perfil** (name, username, photo, password), light/dark theme, five soft color
-  palettes (also selectable on the login page), focus mode, text size.
+  palettes, focus mode, text size.
 - Up to 4 photos per asset: from the gallery or the device **camera**; compressed before upload.
 - Dashboard: total assets, units, estimated value, assets needing attention, units by category,
   location and condition.
@@ -24,6 +24,8 @@ Storage. No build step.
 
 ```bash
 npm start   # http://localhost:8080  (Node 20 via Volta; no dependencies)
+# Do not open index.html with a double click (file://): browsers block ES modules there;
+# the page then shows how to start the local server instead of loading forever.
 npm test    # unit tests for models, filters and stats
 ```
 
