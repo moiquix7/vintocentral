@@ -1,5 +1,6 @@
 /**
- * Departments (stored as `categories`) and locations management: one reusable panel, used twice.
+ * "Catálogos": categories (asset types, `assetTypes`), departments (stored as `categories`) and locations.
+ * One reusable panel, used three times.
  * Departments also keep a leader history (name + gestión years, picked from dropdowns).
  */
 import { h, icon, mount, pageHeader } from '../../core/dom.js';
@@ -7,8 +8,8 @@ import { notify, handleError } from '../../core/notify.js';
 import { LIMITS } from '../../config/app-config.js';
 import { field, input, runSubmit } from '../../shared/form.js';
 import { openModal, confirmDialog } from '../../shared/dialog.js';
-import { categoryStore, locationStore } from './catalog.store.js';
-import { categoryService, locationService } from './catalog.service.js';
+import { assetTypeStore, categoryStore, locationStore, catalogsReady } from './catalog.store.js';
+import { assetTypeService, categoryService, locationService } from './catalog.service.js';
 import { leadersOf, currentLeaders, periodText } from './catalog.model.js';
 import { leadersEditor } from './leaders-editor.js';
 
@@ -116,7 +117,7 @@ async function removeItem(service, item, noun) {
  * @param {{ title: string, noun: string, added: string, store: object, service: object, withLeader?: boolean }} config
  * @returns {{ node: HTMLElement, dispose: () => void }}
  */
-function catalogPanel({ title, noun, added, store, service, withLeader = false }) {
+function catalogPanel({ title, intro, noun, added, store, service, withLeader = false }) {
   const list = h('ul', { class: 'item-list' });
   const fields = itemFields({}, withLeader);
   const add = h('button', { type: 'submit', class: 'btn btn-primary' }, icon('plus'), `Agregar ${noun}`);
@@ -162,27 +163,43 @@ function catalogPanel({ title, noun, added, store, service, withLeader = false }
 
   draw();
   const dispose = store.subscribe(draw);
-  return { node: h('section', { class: 'card' }, h('h2', null, title), form, list), dispose };
+  return { node: h('section', { class: 'card' }, h('h2', null, title), h('p', { class: 'hint' }, intro), form, list), dispose };
 }
 
 export async function render(container) {
-  await Promise.all([categoryStore.whenReady(), locationStore.whenReady()]);
+  await catalogsReady();
   const panels = [
     catalogPanel({
+      title: 'Categorías',
+      intro: 'Qué tipo de artículo es. Ej.: Mobiliario, Equipo de sonido, Vehículos.',
+      noun: 'categoría',
+      added: 'Categoría agregada.',
+      store: assetTypeStore,
+      service: assetTypeService,
+    }),
+    catalogPanel({
       title: 'Departamentos',
+      intro: 'Ministerio responsable del artículo. Ej.: Jóvenes, Escuela Sabática, Música.',
       noun: 'departamento',
       added: 'Departamento agregado.',
       store: categoryStore,
       service: categoryService,
       withLeader: true,
     }),
-    catalogPanel({ title: 'Ubicaciones', noun: 'ubicación', added: 'Ubicación agregada.', store: locationStore, service: locationService }),
+    catalogPanel({
+      title: 'Ubicaciones',
+      intro: 'Dónde está el artículo. Ej.: Templo, Salón de jóvenes.',
+      noun: 'ubicación',
+      added: 'Ubicación agregada.',
+      store: locationStore,
+      service: locationService,
+    }),
   ];
   mount(
     container,
-    pageHeader('Departamentos y ubicaciones'),
-    h('p', { class: 'muted' }, 'Los departamentos agrupan los bienes según quién los usa (ej.: Jóvenes, Escuela Sabática, Música). Las ubicaciones dicen dónde están (ej.: Templo, Salón de jóvenes).'),
-    h('div', { class: 'grid-2' }, panels.map((p) => p.node)),
+    pageHeader('Catálogos'),
+    h('p', { class: 'muted' }, 'Cada artículo tiene una categoría, un departamento responsable y una ubicación.'),
+    h('div', { class: 'grid-3' }, panels.map((p) => p.node)),
   );
   return () => panels.forEach((p) => p.dispose());
 }

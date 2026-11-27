@@ -24,14 +24,14 @@ import {
   validatePasswordChange,
 } from '../js/modules/users/user.model.js';
 
-const lookups = { categoryName: (id) => `cat-${id}`, locationName: (id) => `loc-${id}` };
+const lookups = { typeName: (id) => `type-${id}`, categoryName: (id) => `cat-${id}`, locationName: (id) => `loc-${id}` };
 
 test('computeStats totals units, value and attention count', () => {
   const stats = computeStats(
     [
-      { categoryId: 'a', locationId: 'x', condition: 'good', quantity: 10, value: 5 },
-      { categoryId: 'a', locationId: 'y', condition: 'poor', quantity: 2, value: 100 },
-      { categoryId: 'b', locationId: 'x', condition: 'out_of_service', quantity: 1, value: 0 },
+      { typeId: 't', categoryId: 'a', locationId: 'x', condition: 'good', quantity: 10, value: 5 },
+      { typeId: 't', categoryId: 'a', locationId: 'y', condition: 'poor', availability: 'in_repair', quantity: 2, value: 100 },
+      { categoryId: 'b', locationId: 'x', condition: 'out_of_service', availability: 'missing', quantity: 1, value: 0 },
     ],
     lookups,
   );
@@ -41,6 +41,11 @@ test('computeStats totals units, value and attention count', () => {
   assert.equal(stats.needsAttention, 2);
   assert.deepEqual(stats.byCategory.map((g) => [g.label, g.units]), [['cat-a', 12], ['cat-b', 1]]);
   assert.equal(stats.byCondition.find((c) => c.key === 'good').units, 10);
+  assert.deepEqual(stats.byType.map((g) => [g.label, g.units]), [['type-t', 12], ['type-', 1]]);
+  assert.deepEqual(
+    stats.byAvailability.filter((g) => g.units).map((g) => [g.key, g.units]),
+    [['available', 10], ['in_repair', 2], ['missing', 1]],
+  );
 });
 
 test('computeStats on empty list', () => {

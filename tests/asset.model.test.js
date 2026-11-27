@@ -1,14 +1,26 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeAsset, validateAsset, normalizeTags, sanitizePhotos, ASSET_FIELDS } from '../js/modules/assets/asset.model.js';
+import {
+  sanitizeAsset,
+  validateAsset,
+  normalizeTags,
+  sanitizePhotos,
+  availabilityOf,
+  sanitizeInventoryUpdate,
+  validateInventoryUpdate,
+  ASSET_FIELDS,
+  INVENTORY_FIELDS,
+} from '../js/modules/assets/asset.model.js';
 
 const valid = {
   name: ' Silla plástica ',
   code: 'SILLA-001',
   description: 'Blanca',
+  typeId: 'type1',
   categoryId: 'cat1',
   locationId: 'loc1',
   condition: 'good',
+  availability: 'in_use',
   tags: 'Templo, templo,  Donación ',
   acquisitionDate: '2020-05-01',
   value: '25,50',
@@ -38,7 +50,9 @@ test('required fields and ranges are validated', () => {
   const errors = validateAsset(
     sanitizeAsset({ name: '  ', condition: 'broken', quantity: '1.5', value: '-3', acquisitionDate: '2023-02-30' }),
   );
-  assert.deepEqual(Object.keys(errors).sort(), ['acquisitionDate', 'categoryId', 'condition', 'locationId', 'name', 'quantity', 'value']);
+  assert.deepEqual(Object.keys(errors).sort(), [
+    'acquisitionDate', 'availability', 'categoryId', 'condition', 'locationId', 'name', 'quantity', 'typeId', 'value',
+  ]);
 });
 
 test('future acquisition date is rejected', () => {
@@ -74,4 +88,20 @@ test('sanitizePhotos keeps only path/url pairs, max 4', () => {
     { path: 'p4', url: 'u4' },
     { path: 'p5', url: 'u5' },
   ]);
+});
+
+test('availability: unknown or missing (old articles) counts as available', () => {
+  assert.equal(availabilityOf({ availability: 'loaned' }), 'loaned');
+  assert.equal(availabilityOf({}), 'available');
+  assert.equal(availabilityOf({ availability: 'stolen' }), 'available');
+  assert.equal(availabilityOf(null), 'available');
+});
+
+test('inventory update keeps only location, condition and availability', () => {
+  const update = sanitizeInventoryUpdate({ locationId: ' loc2 ', condition: 'fair', availability: 'missing', name: 'x', checkedAt: 1 });
+  assert.deepEqual(Object.keys(update).sort(), [...INVENTORY_FIELDS].sort());
+  assert.equal(update.locationId, 'loc2');
+  assert.deepEqual(validateInventoryUpdate(update), {});
+  const errors = validateInventoryUpdate(sanitizeInventoryUpdate({ condition: 'broken', availability: 'lost' }));
+  assert.deepEqual(Object.keys(errors).sort(), ['availability', 'condition', 'locationId']);
 });

@@ -1,8 +1,8 @@
-/** Dashboard: key indicators and distribution by department, location and condition. */
+/** Dashboard: key indicators and distribution by category, department, location, condition and availability. */
 import { h, icon, mount, pageHeader } from '../../core/dom.js';
 import { session } from '../../core/session.js';
 import { assetStore } from '../assets/asset.store.js';
-import { categoryStore, locationStore, catalogLookups } from '../catalogs/catalog.store.js';
+import { CATALOG_STORES, catalogLookups, catalogsReady } from '../catalogs/catalog.store.js';
 import { formatCurrency, formatNumber } from '../../shared/format.js';
 import { computeStats } from './dashboard.stats.js';
 
@@ -42,12 +42,13 @@ function draw(container) {
     container,
     pageHeader(
       `Hola, ${session.profile.displayName}`,
-      canWrite ? h('a', { href: '#/assets/new', class: 'btn btn-primary' }, icon('plus'), 'Registrar bien') : null,
+      canWrite ? h('a', { href: '#/inventory', class: 'btn btn-secondary' }, icon('check'), 'Toma de inventario') : null,
+      canWrite ? h('a', { href: '#/assets/new', class: 'btn btn-primary' }, icon('plus'), 'Registrar artículo') : null,
     ),
     h(
       'section',
       { class: 'kpis', 'aria-label': 'Indicadores' },
-      kpi('Bienes registrados', formatNumber(stats.totalRecords)),
+      kpi('Artículos registrados', formatNumber(stats.totalRecords)),
       kpi('Unidades en total', formatNumber(stats.totalUnits)),
       kpi('Valor estimado', formatCurrency(stats.totalValue)),
       kpi('Necesitan atención', formatNumber(stats.needsAttention), stats.needsAttention ? 'warn' : ''),
@@ -56,30 +57,32 @@ function draw(container) {
       ? h(
           'section',
           { class: 'card empty-state' },
-          h('h2', null, 'Aún no hay bienes registrados'),
+          h('h2', null, 'Aún no hay artículos registrados'),
           h(
             'p',
             null,
             canWrite
-              ? 'Primero cree los departamentos y ubicaciones, luego registre el primer bien.'
-              : 'Cuando se registren bienes, aquí verá el resumen.',
+              ? 'Primero cree las categorías, departamentos y ubicaciones; luego registre el primer artículo.'
+              : 'Cuando se registren artículos, aquí verá el resumen.',
           ),
-          canWrite ? h('a', { href: '#/catalogs', class: 'btn btn-secondary' }, 'Ir a departamentos y ubicaciones') : null,
+          canWrite ? h('a', { href: '#/catalogs', class: 'btn btn-secondary' }, 'Ir a catálogos') : null,
         )
       : h(
           'div',
           { class: 'grid-3' },
-          barList('Por departamento (unidades)', stats.byCategory),
+          barList('Por categoría (unidades)', stats.byType),
           barList('Por ubicación (unidades)', stats.byLocation),
+          barList('Por departamento (unidades)', stats.byCategory),
           barList('Por estado (unidades)', stats.byCondition),
+          barList('Por disponibilidad (unidades)', stats.byAvailability),
         ),
   );
 }
 
 export async function render(container) {
-  await Promise.all([assetStore.whenReady(), categoryStore.whenReady(), locationStore.whenReady()]);
+  await Promise.all([assetStore.whenReady(), catalogsReady()]);
   draw(container);
   const redraw = () => draw(container);
-  const unsubscribers = [assetStore, categoryStore, locationStore].map((store) => store.subscribe(redraw));
+  const unsubscribers = [assetStore, ...CATALOG_STORES].map((store) => store.subscribe(redraw));
   return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
 }

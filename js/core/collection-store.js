@@ -41,7 +41,9 @@ export function createCollectionStore(collectionName, { orderByField }) {
       unsubscribe = onSnapshot(
         query(collection(db, collectionName), orderBy(orderByField)),
         (snapshot) => {
-          items = snapshot.docs.map((d) => Object.freeze({ id: d.id, ...d.data() }));
+          // 'estimate': a just-written serverTimestamp() shows the local time instead of null until the
+          // server confirms it (e.g. an article verified in the inventory grid looks verified at once).
+          items = snapshot.docs.map((d) => Object.freeze({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }));
           byId = new Map(items.map((item) => [item.id, item]));
           markReady();
           emit();

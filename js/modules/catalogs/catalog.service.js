@@ -1,6 +1,6 @@
 /**
- * Generic CRUD for small catalogs (categories = departments, locations).
- * One factory, two instances: same behaviour, different collection.
+ * Generic CRUD for small catalogs: asset types (UI "Categorías"), categories (UI "Departamentos") and
+ * locations. One factory, three instances: same behaviour, different collection.
  */
 import {
   db,
@@ -20,7 +20,7 @@ import { session } from '../../core/session.js';
 import { AppError, ValidationError, toAppError } from '../../core/errors.js';
 import { COLLECTIONS } from '../../config/app-config.js';
 import { sanitizeCatalogItem, validateCatalogItem, sortLeaders } from './catalog.model.js';
-import { categoryStore, locationStore } from './catalog.store.js';
+import { assetTypeStore, categoryStore, locationStore } from './catalog.store.js';
 
 /** Fields of the short-lived single-leader version; removed on the first edit. */
 const LEGACY_DEPARTMENT_FIELDS = Object.freeze(['leader', 'term']);
@@ -65,7 +65,7 @@ function createCatalogService({ collectionName, usageField, store, withLeader = 
       try {
         const inUse = await getDocs(query(collection(db, COLLECTIONS.assets), where(usageField, '==', id), limit(1)));
         if (!inUse.empty) {
-          throw new AppError('No se puede eliminar: hay bienes que lo usan. Cámbielos primero.', { code: 'app/in-use' });
+          throw new AppError('No se puede eliminar: hay artículos que lo usan. Cámbielos primero.', { code: 'app/in-use' });
         }
         await deleteDoc(doc(db, collectionName, id));
       } catch (error) {
@@ -74,6 +74,12 @@ function createCatalogService({ collectionName, usageField, store, withLeader = 
     },
   });
 }
+
+export const assetTypeService = createCatalogService({
+  collectionName: COLLECTIONS.assetTypes,
+  usageField: 'typeId',
+  store: assetTypeStore,
+});
 
 export const categoryService = createCatalogService({
   collectionName: COLLECTIONS.categories,

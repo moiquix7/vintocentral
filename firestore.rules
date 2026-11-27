@@ -101,10 +101,12 @@ service cloud.firestore {
       allow delete: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
     }
 
-    // ---------- Assets ----------
+    // ---------- Assets ("Artículos") ----------
+    // typeId ("Categoría"), availability and checkedAt are optional: articles registered before they
+    // existed must still be editable. The app always writes typeId and availability.
     function validAsset(data) {
-      return data.keys().hasOnly(['code', 'name', 'description', 'categoryId', 'locationId', 'condition',
-                                  'tags', 'acquisitionDate', 'value', 'quantity', 'photos',
+      return data.keys().hasOnly(['code', 'name', 'description', 'typeId', 'categoryId', 'locationId', 'condition',
+                                  'availability', 'tags', 'acquisitionDate', 'value', 'quantity', 'photos', 'checkedAt',
                                   'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
         && data.keys().hasAll(['code', 'name', 'description', 'categoryId', 'locationId', 'condition',
                                'tags', 'acquisitionDate', 'value', 'quantity', 'photos',
@@ -112,9 +114,12 @@ service cloud.firestore {
         && isText(data.code, 0, 30)
         && isText(data.name, 1, 120)
         && isText(data.description, 0, 500)
+        && (!('typeId' in data) || isText(data.typeId, 1, 64))
         && isText(data.categoryId, 1, 64)
         && isText(data.locationId, 1, 64)
         && data.condition in ['new', 'good', 'fair', 'poor', 'out_of_service']
+        && (!('availability' in data) || data.availability in ['available', 'in_use', 'loaned', 'in_repair', 'missing'])
+        && (!('checkedAt' in data) || data.checkedAt is timestamp)
         && data.tags is list && data.tags.size() <= 10
         && isText(data.acquisitionDate, 0, 10)
         && data.value is number && data.value >= 0 && data.value <= 1000000000
@@ -127,14 +132,19 @@ service cloud.firestore {
       allow read: if canRead();
       allow create: if canEdit() && validAsset(request.resource.data)
         && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.createdAt == request.time;
+        && request.resource.data.createdAt == request.time
+        && !('checkedAt' in request.resource.data);
+      // checkedAt (inventory verification) may only stay as it was or become "now".
       allow update: if canEdit() && validAsset(request.resource.data)
         && request.resource.data.createdBy == resource.data.createdBy
-        && request.resource.data.createdAt == resource.data.createdAt;
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (request.resource.data.get('checkedAt', null) == resource.data.get('checkedAt', null)
+            || request.resource.data.get('checkedAt', null) == request.time);
       allow delete: if isAdmin();
     }
 
-    // ---------- Catalogs: locations (validCatalog) and categories = "Departamentos" (validDepartment) ----------
+    // ---------- Catalogs: locations and assetTypes = "Categorías" (validCatalog),
+    //            categories = "Departamentos" (validDepartment) ----------
     function validCatalog(data) {
       return data.keys().hasOnly(['name', 'description', 'createdAt', 'updatedAt', 'updatedBy'])
         && data.keys().hasAll(['name', 'description', 'createdAt', 'updatedAt', 'updatedBy'])
@@ -158,6 +168,13 @@ service cloud.firestore {
       allow read: if canRead();
       allow create: if canEdit() && validDepartment(request.resource.data) && request.resource.data.createdAt == request.time;
       allow update: if canEdit() && validDepartment(request.resource.data) && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if canEdit();
+    }
+
+    match /assetTypes/{id} {
+      allow read: if canRead();
+      allow create: if canEdit() && validCatalog(request.resource.data) && request.resource.data.createdAt == request.time;
+      allow update: if canEdit() && validCatalog(request.resource.data) && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if canEdit();
     }
 

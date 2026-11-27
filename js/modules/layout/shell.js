@@ -2,24 +2,25 @@
  * Application shell for signed-in pages: header (logo, user menu), navigation filtered by
  * permission, and <main id="main"> where views render.
  * The user menu (avatar button) holds: Mi perfil, appearance (theme, colors, focus mode,
- * text size) and Salir.
+ * text size) and Salir. A sun/moon button next to it switches light ↔ dark in one tap.
  */
 import { h, icon, mount } from '../../core/dom.js';
 import { session, endSession } from '../../core/session.js';
 import { navigate } from '../../core/router.js';
 import { APP, ROLES } from '../../config/app-config.js';
 import { avatar } from '../../shared/avatar.js';
-import { appearanceControls } from '../../shared/appearance.js';
+import { appearanceControls, themeToggle } from '../../shared/appearance.js';
 
 const NAV_ITEMS = Object.freeze([
   { path: '/dashboard', label: 'Inicio', icon: 'home', permission: 'assets.read' },
-  { path: '/assets', label: 'Bienes', icon: 'box', permission: 'assets.read' },
-  { path: '/catalogs', label: 'Departamentos y ubicaciones', icon: 'tag', permission: 'catalogs.write' },
+  { path: '/assets', label: 'Artículos', icon: 'box', permission: 'assets.read' },
+  { path: '/inventory', label: 'Toma de inventario', icon: 'check', permission: 'assets.write' },
+  { path: '/catalogs', label: 'Catálogos', icon: 'tag', permission: 'catalogs.write' },
   { path: '/reports', label: 'Reportes', icon: 'file', permission: 'reports.view' },
   { path: '/users', label: 'Usuarios', icon: 'users', permission: 'users.manage' },
 ]);
 
-let shell = null; // { root, main, nav, key, dispose }
+let shell = null; // { root, main, nav, key, menu, toggle }
 
 export function shellKey(profile) {
   return profile ? [profile.uid, profile.role, profile.displayName, profile.username, profile.photoUrl].join('|') : '';
@@ -132,6 +133,7 @@ function build(root) {
   });
 
   const menu = userMenu(profile);
+  const toggle = themeToggle();
   mount(
     root,
     skip,
@@ -144,26 +146,31 @@ function build(root) {
         h('img', { src: APP.logo, alt: '', width: '36', height: '36', class: 'brand-logo' }),
         h('span', { class: 'brand-name' }, APP.name),
       ),
-      h('div', { class: 'header-actions' }, menu.node, menuButton),
+      h('div', { class: 'header-actions' }, toggle.node, menu.node, menuButton),
     ),
     h('div', { class: 'app-body' }, nav, main),
   );
-  return { root, main, nav, key: shellKey(profile), menu };
+  return { root, main, nav, key: shellKey(profile), menu, toggle };
 }
 
 /** Returns the <main> element, (re)building the shell when missing or when the profile changed. */
 export function ensureShell(root) {
   const key = shellKey(session.profile);
   if (!shell || shell.root !== root || !root.contains(shell.main) || shell.key !== key) {
-    shell?.menu.dispose();
+    disposeShell();
     shell = build(root);
   }
   shell.menu.close();
   return shell.main;
 }
 
-export function destroyShell() {
+function disposeShell() {
   shell?.menu.dispose();
+  shell?.toggle.dispose();
+}
+
+export function destroyShell() {
+  disposeShell();
   shell = null;
 }
 

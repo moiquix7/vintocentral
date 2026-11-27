@@ -37,6 +37,17 @@ export const CONDITIONS = Object.freeze({
   out_of_service: 'Fuera de servicio',
 });
 
+/** Availability of an article, ordered from most to least usable. Missing on old articles = available. */
+export const AVAILABILITY = Object.freeze({
+  available: 'Disponible',
+  in_use: 'En uso',
+  loaned: 'Prestado',
+  in_repair: 'En reparación',
+  missing: 'Extraviado',
+});
+
+export const DEFAULT_AVAILABILITY = 'available';
+
 /** Conditions that the dashboard flags as "needs attention". */
 export const ATTENTION_CONDITIONS = Object.freeze(['poor', 'out_of_service']);
 
@@ -59,7 +70,10 @@ export const LIMITS = Object.freeze({
 
 export const COLLECTIONS = Object.freeze({
   assets: 'assets',
+  /** UI "Departamentos" (technical name kept to avoid a data migration). */
   categories: 'categories',
+  /** UI "Categorías": type of asset (furniture, equipment, vehicles…). */
+  assetTypes: 'assetTypes',
   locations: 'locations',
   users: 'users',
   usernames: 'usernames',

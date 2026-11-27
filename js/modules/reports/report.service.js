@@ -3,7 +3,8 @@
  * Optionally includes the first photo of each asset: downloaded 4 at a time, cropped to a small
  * square JPEG and drawn in the first column. A photo that fails never stops the report.
  */
-import { APP, CONDITIONS } from '../../config/app-config.js';
+import { APP, AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
+import { availabilityOf } from '../assets/asset.model.js';
 import { AppError } from '../../core/errors.js';
 import { loadScript } from '../../shared/script-loader.js';
 import { loadSquareThumbnail } from '../../shared/image.js';
@@ -32,9 +33,11 @@ export function buildReportRows(assets, lookups) {
   return assets.map((asset) => [
     asset.code || '—',
     asset.name,
+    lookups.typeName(asset.typeId),
     lookups.categoryName(asset.categoryId),
     lookups.locationName(asset.locationId),
     CONDITIONS[asset.condition] ?? '—',
+    AVAILABILITY[availabilityOf(asset)],
     formatNumber(asset.quantity),
     formatCurrency(asset.value),
     formatCurrency((asset.value || 0) * (asset.quantity || 1)),
@@ -86,7 +89,7 @@ export async function generateInventoryPdf({ assets, lookups, filterSummary, gen
 
   pdf.setTextColor(...COLORS.primary);
   pdf.setFontSize(16);
-  pdf.text('Informe de inventario de bienes', 14, 16);
+  pdf.text('Informe de inventario de artículos', 14, 16);
   pdf.setFontSize(10);
   pdf.setTextColor(...COLORS.muted);
   pdf.text(APP.name, 14, 22);
@@ -97,13 +100,13 @@ export async function generateInventoryPdf({ assets, lookups, filterSummary, gen
   pdf.setFontSize(11);
   const conditions = stats.byCondition.filter((c) => c.units > 0).map((c) => `${c.label}: ${formatNumber(c.units)}`).join('   ');
   pdf.text(
-    `Bienes: ${formatNumber(stats.totalRecords)}    Unidades: ${formatNumber(stats.totalUnits)}    Valor total: ${formatCurrency(stats.totalValue)}`,
+    `Artículos: ${formatNumber(stats.totalRecords)}    Unidades: ${formatNumber(stats.totalUnits)}    Valor total: ${formatCurrency(stats.totalValue)}`,
     14,
     40,
   );
   if (conditions) pdf.text(`Por estado (unidades) — ${conditions}`, 14, 46);
 
-  const head = ['Código', 'Nombre', 'Departamento', 'Ubicación', 'Estado', 'Cant.', 'Valor unit.', 'Valor total'];
+  const head = ['Código', 'Nombre', 'Categoría', 'Departamento', 'Ubicación', 'Estado', 'Disponib.', 'Cant.', 'Valor unit.', 'Valor total'];
   let body = buildReportRows(assets, lookups);
   const offset = includePhotos ? 1 : 0;
   if (includePhotos) {
@@ -117,7 +120,7 @@ export async function generateInventoryPdf({ assets, lookups, filterSummary, gen
     head: [head],
     body,
     styles: {
-      fontSize: 9,
+      fontSize: 8.5,
       cellPadding: 2,
       textColor: COLORS.text,
       valign: 'middle',
@@ -127,9 +130,9 @@ export async function generateInventoryPdf({ assets, lookups, filterSummary, gen
     alternateRowStyles: { fillColor: COLORS.stripe },
     columnStyles: {
       ...(includePhotos ? { 0: { cellWidth: PHOTO.columnMm, halign: 'center' } } : {}),
-      [5 + offset]: right,
-      [6 + offset]: right,
       [7 + offset]: right,
+      [8 + offset]: right,
+      [9 + offset]: right,
     },
     margin: { left: 14, right: 14, bottom: 16 },
     didDrawCell: (data) => {

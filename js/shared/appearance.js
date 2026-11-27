@@ -3,9 +3,10 @@
  * Reused by the user menu and Mi perfil; every instance stays in sync through
  * preferences.subscribePreferences().
  */
-import { h } from '../core/dom.js';
+import { h, icon } from '../core/dom.js';
 import {
   THEMES,
+  resolvedTheme,
   PALETTES,
   FONT_SCALES,
   getPreferences,
@@ -97,4 +98,24 @@ export function appearanceControls() {
     ),
     dispose,
   };
+}
+
+/**
+ * One-tap light ↔ dark switch for the header. Shows the mode it switches to (moon in light mode,
+ * sun in dark mode). Choosing it replaces "Según el dispositivo" with an explicit theme; the user
+ * menu still offers all three options.
+ * @returns {{ node: HTMLButtonElement, dispose: () => void }}
+ */
+export function themeToggle() {
+  const button = h('button', { type: 'button', class: 'btn-icon theme-toggle' });
+  const draw = () => {
+    const dark = resolvedTheme() === 'dark';
+    button.replaceChildren(icon(dark ? 'sun' : 'moon'));
+    const label = dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
+    button.setAttribute('aria-label', label);
+    button.title = label;
+  };
+  button.addEventListener('click', () => updatePreferences({ theme: resolvedTheme() === 'dark' ? 'light' : 'dark' }));
+  draw();
+  return { node: button, dispose: subscribePreferences(draw) };
 }

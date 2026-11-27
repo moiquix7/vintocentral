@@ -51,7 +51,8 @@ function save() {
   }
 }
 
-function resolvedTheme() {
+/** The theme actually shown ('light' | 'dark'), resolving "system" with the device setting. */
+export function resolvedTheme() {
   if (current.theme !== 'system') return current.theme;
   return darkQuery?.matches ? 'dark' : 'light';
 }
@@ -70,7 +71,9 @@ export function applyPreferences() {
 
 // Follow the device when the theme is "system".
 darkQuery?.addEventListener?.('change', () => {
-  if (current.theme === 'system') applyPreferences();
+  if (current.theme !== 'system') return;
+  applyPreferences();
+  listeners.forEach((listener) => listener(getPreferences())); // e.g. the header sun/moon button
 });
 
 export function getPreferences() {
