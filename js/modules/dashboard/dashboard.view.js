@@ -93,6 +93,7 @@ function draw(container, connected) {
             segmentedBar('Estado de los artículos (unidades)', stats.byCondition, 'condition'),
             segmentedBar('Disponibilidad (unidades)', stats.byAvailability, 'availability'),
           ),
+          barList('Artículos por departamento', articlesPerDepartment(assetStore.getAll(), categoryStore.getAll())),
           h(
             'div',
             { class: 'grid-2' },
