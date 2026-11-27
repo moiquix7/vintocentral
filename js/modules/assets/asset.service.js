@@ -183,6 +183,28 @@ export async function checkAsset(id, input) {
  * Deletes the document first (so the asset disappears even if photo cleanup fails), then its photos.
  * The history keeps a "deleted" entry with the article's name.
  */
+ * Inventory-taking: saves location, condition and availability, and marks the article as verified now
+ * (checkedAt). Nothing else in the document changes.
+ * @param {string} id
+ * @param {{ locationId: string, condition: string, availability: string }} input
+ */
+export async function checkAsset(id, input) {
+  const update = sanitizeInventoryUpdate(input);
+  const errors = validateInventoryUpdate(update);
+  if (Object.keys(errors).length) throw new ValidationError(errors);
+  try {
+    await updateDoc(doc(db, COLLECTIONS.assets, id), {
+      ...update,
+      checkedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      updatedBy: session.user.uid,
+    });
+  } catch (error) {
+    throw toAppError(error);
+  }
+}
+
+/** Deletes the document first (so the asset disappears even if photo cleanup fails), then its photos. */
 export async function deleteAsset(asset) {
   try {
     const batch = writeBatch(db);
