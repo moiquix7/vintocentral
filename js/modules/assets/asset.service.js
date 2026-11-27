@@ -21,7 +21,13 @@ import {
 import { session } from '../../core/session.js';
 import { AppError, ValidationError, toAppError, isNotFound } from '../../core/errors.js';
 import { COLLECTIONS, LIMITS } from '../../config/app-config.js';
-import { sanitizeAsset, validateAsset, sanitizePhotos } from './asset.model.js';
+import {
+  sanitizeAsset,
+  validateAsset,
+  sanitizePhotos,
+  sanitizeInventoryUpdate,
+  validateInventoryUpdate,
+} from './asset.model.js';
 
 function prepare(input) {
   const asset = sanitizeAsset(input);
@@ -32,7 +38,7 @@ function prepare(input) {
 
 function checkPhotoCount(count) {
   if (count > LIMITS.asset.photos) {
-    throw new AppError(`Máximo ${LIMITS.asset.photos} fotos por bien.`, { code: 'app/photo-limit' });
+    throw new AppError(`Máximo ${LIMITS.asset.photos} fotos por artículo.`, { code: 'app/photo-limit' });
   }
 }
 
@@ -123,6 +129,28 @@ export async function updateAsset(id, input, { keptPhotos = [], removedPhotos = 
     throw toAppError(error);
   }
   await removePhotos(removedPhotos);
+}
+
+/**
+ * Inventory-taking: saves location, condition and availability, and marks the article as verified now
+ * (checkedAt). Nothing else in the document changes.
+ * @param {string} id
+ * @param {{ locationId: string, condition: string, availability: string }} input
+ */
+export async function checkAsset(id, input) {
+  const update = sanitizeInventoryUpdate(input);
+  const errors = validateInventoryUpdate(update);
+  if (Object.keys(errors).length) throw new ValidationError(errors);
+  try {
+    await updateDoc(doc(db, COLLECTIONS.assets, id), {
+      ...update,
+      checkedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      updatedBy: session.user.uid,
+    });
+  } catch (error) {
+    throw toAppError(error);
+  }
 }
 
 /** Deletes the document first (so the asset disappears even if photo cleanup fails), then its photos. */

@@ -1,9 +1,15 @@
-/** Small presentational pieces shared by the asset views. */
+/** Small presentational pieces shared by the asset views (and the inventory grid). */
 import { h, icon } from '../../core/dom.js';
-import { CONDITIONS } from '../../config/app-config.js';
+import { AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
+import { availabilityOf } from './asset.model.js';
 
 export function conditionBadge(condition) {
   return h('span', { class: `badge badge--${condition}` }, CONDITIONS[condition] ?? '—');
+}
+
+export function availabilityBadge(asset) {
+  const availability = availabilityOf(asset);
+  return h('span', { class: `badge badge--${availability}` }, AVAILABILITY[availability]);
 }
 
 export function thumbnail(asset, size = 56) {

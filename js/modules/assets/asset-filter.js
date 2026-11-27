@@ -1,6 +1,7 @@
 /** Client-side search, filter and sort for the asset list and reports. Pure. */
-import { CONDITIONS } from '../../config/app-config.js';
+import { AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
 import { foldText } from '../../shared/validation.js';
+import { availabilityOf } from './asset.model.js';
 
 export const SORT_OPTIONS = Object.freeze({
   'name:asc': 'Nombre (A → Z)',
@@ -13,23 +14,27 @@ export const SORT_OPTIONS = Object.freeze({
 
 export const EMPTY_FILTERS = Object.freeze({
   text: '',
+  typeId: '',
   categoryId: '',
   locationId: '',
   condition: '',
+  availability: '',
   sort: 'name:asc',
 });
 
 /**
  * @param {Array<object>} assets
  * @param {typeof EMPTY_FILTERS} filters
- * @param {{ categoryName: (id: string) => string, locationName: (id: string) => string }} lookups
+ * @param {{ typeName: (id: string) => string, categoryName: (id: string) => string, locationName: (id: string) => string }} lookups
  */
 export function filterAssets(assets, filters, lookups) {
   const words = foldText(filters.text).split(/\s+/).filter(Boolean);
   return assets.filter((asset) => {
+    if (filters.typeId && asset.typeId !== filters.typeId) return false;
     if (filters.categoryId && asset.categoryId !== filters.categoryId) return false;
     if (filters.locationId && asset.locationId !== filters.locationId) return false;
     if (filters.condition && asset.condition !== filters.condition) return false;
+    if (filters.availability && availabilityOf(asset) !== filters.availability) return false;
     if (!words.length) return true;
     const haystack = foldText(
       [
@@ -37,9 +42,11 @@ export function filterAssets(assets, filters, lookups) {
         asset.code,
         asset.description,
         ...(asset.tags ?? []),
+        lookups.typeName(asset.typeId),
         lookups.categoryName(asset.categoryId),
         lookups.locationName(asset.locationId),
         CONDITIONS[asset.condition],
+        AVAILABILITY[availabilityOf(asset)],
       ].join(' '),
     );
     return words.every((word) => haystack.includes(word));

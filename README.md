@@ -8,16 +8,20 @@ Storage. No build step.
 
 - Sign in with **username** (or email) and password; roles **admin**, **editor**, **viewer**
   (enforced by security rules).
-- Assets: create, edit, delete (admin), search, filter by department / location / condition, sort.
-- Departments and locations catalogs; free tags per asset.
+- Articles (*artículos*): create, edit, delete (admin), search, filter by category / department /
+  location / condition / availability, sort.
+- **Inventory-taking grid**: verify each article and update its location, condition and
+  availability row by row, with progress ("N de M verificados").
+- Catalogs: categories (type of asset), departments (responsible ministry, with leader history) and
+  locations; free tags (*etiquetas*) per article.
 - User menu: **Mi perfil** (name, username, photo, password), light/dark theme, five soft color
   palettes, focus mode, text size.
 - Up to 4 photos per asset: from the gallery or the device **camera**; compressed before upload.
-- Dashboard: total assets, units, estimated value, assets needing attention, units by category,
-  location and condition.
+- Dashboard: total articles, units, estimated value, articles needing attention, units by category,
+  department, location, condition and availability.
 - PDF inventory report with filters and summary.
 - User administration (admin): create accounts, change role, deactivate, send password reset.
-- Soft colors, automatic dark mode, **focus mode (ADHD-friendly)** and adjustable text size.
+- Soft colors, light/dark mode (automatic or one-tap header button), responsive from phone to desktop, **focus mode (ADHD-friendly)** and adjustable text size.
 - Unknown routes go back to the login page.
 
 ## Quick start
@@ -48,7 +52,7 @@ js/app.js                   routes and session → data wiring
 js/config/                  app constants, roles, limits, Firebase web config
 js/core/                    firebase SDK, router, session, errors, notifications, stores, DOM helper
 js/shared/                  forms, dialogs, camera, image compression, formatting
-js/modules/<feature>/       auth, layout, dashboard, assets, catalogs, reports, users
+js/modules/<feature>/       auth, layout, dashboard, assets, inventory, catalogs, reports, users
 firestore.rules, storage.rules, firebase.json, .firebaserc
 .github/workflows/deploy-pages.yml
 tests/                      node --test

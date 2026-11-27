@@ -1,5 +1,6 @@
 /** Dashboard indicators computed from the in-memory asset list. Pure. */
-import { ATTENTION_CONDITIONS, CONDITIONS } from '../../config/app-config.js';
+import { ATTENTION_CONDITIONS, AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
+import { availabilityOf } from '../assets/asset.model.js';
 
 /**
  * Groups by `keyOf`, summing quantities (units). Sorted by units descending.
@@ -16,13 +17,22 @@ function groupUnits(assets, keyOf, labelOf) {
     .sort((a, b) => b.units - a.units || a.label.localeCompare(b.label));
 }
 
+/** Units per value of a fixed list (every value listed, even with 0 units), in the list's order. */
+function unitsPerOption(assets, options, valueOf) {
+  return Object.keys(options).map((key) => ({
+    key,
+    label: options[key],
+    units: assets.filter((a) => valueOf(a) === key).reduce((sum, a) => sum + quantityOf(a), 0),
+  }));
+}
+
 function quantityOf(asset) {
   return Number.isInteger(asset.quantity) && asset.quantity > 0 ? asset.quantity : 1;
 }
 
 /**
  * @param {Array<object>} assets
- * @param {{ categoryName: (id: string) => string, locationName: (id: string) => string }} lookups
+ * @param {{ typeName: (id: string) => string, categoryName: (id: string) => string, locationName: (id: string) => string }} lookups
  */
 export function computeStats(assets, lookups) {
   let totalUnits = 0;
@@ -39,12 +49,10 @@ export function computeStats(assets, lookups) {
     totalUnits,
     totalValue,
     needsAttention,
+    byType: groupUnits(assets, (a) => a.typeId, lookups.typeName),
     byCategory: groupUnits(assets, (a) => a.categoryId, lookups.categoryName),
     byLocation: groupUnits(assets, (a) => a.locationId, lookups.locationName),
-    byCondition: Object.keys(CONDITIONS).map((key) => ({
-      key,
-      label: CONDITIONS[key],
-      units: assets.filter((a) => a.condition === key).reduce((sum, a) => sum + quantityOf(a), 0),
-    })),
+    byCondition: unitsPerOption(assets, CONDITIONS, (a) => a.condition),
+    byAvailability: unitsPerOption(assets, AVAILABILITY, availabilityOf),
   };
 }

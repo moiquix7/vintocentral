@@ -5,23 +5,24 @@
 import { session, startSession } from './core/session.js';
 import { startRouter, refreshRoute, navigate, LOGIN_PATH, HOME_PATH } from './core/router.js';
 import { assetStore } from './modules/assets/asset.store.js';
-import { categoryStore, locationStore } from './modules/catalogs/catalog.store.js';
+import { CATALOG_STORES } from './modules/catalogs/catalog.store.js';
 import { ensureShell, destroyShell, setActiveNav, shellKey } from './modules/layout/shell.js';
 
 const ROUTES = Object.freeze([
   { path: LOGIN_PATH, title: 'Ingresar', public: true, view: () => import('./modules/auth/login.view.js') },
   { path: HOME_PATH, title: 'Inicio', permission: 'assets.read', view: () => import('./modules/dashboard/dashboard.view.js') },
-  { path: '/assets', title: 'Bienes', permission: 'assets.read', view: () => import('./modules/assets/asset-list.view.js') },
-  { path: '/assets/new', title: 'Registrar bien', permission: 'assets.write', view: () => import('./modules/assets/asset-form.view.js') },
-  { path: '/assets/:id', title: 'Detalle del bien', permission: 'assets.read', view: () => import('./modules/assets/asset-detail.view.js') },
-  { path: '/assets/:id/edit', title: 'Editar bien', permission: 'assets.write', view: () => import('./modules/assets/asset-form.view.js') },
+  { path: '/assets', title: 'Artículos', permission: 'assets.read', view: () => import('./modules/assets/asset-list.view.js') },
+  { path: '/assets/new', title: 'Registrar artículo', permission: 'assets.write', view: () => import('./modules/assets/asset-form.view.js') },
+  { path: '/assets/:id', title: 'Detalle del artículo', permission: 'assets.read', view: () => import('./modules/assets/asset-detail.view.js') },
+  { path: '/assets/:id/edit', title: 'Editar artículo', permission: 'assets.write', view: () => import('./modules/assets/asset-form.view.js') },
+  { path: '/inventory', title: 'Toma de inventario', permission: 'assets.write', view: () => import('./modules/inventory/inventory.view.js') },
   { path: '/profile', title: 'Mi perfil', view: () => import('./modules/profile/profile.view.js') },
-  { path: '/catalogs', title: 'Departamentos y ubicaciones', permission: 'catalogs.write', view: () => import('./modules/catalogs/catalogs.view.js') },
+  { path: '/catalogs', title: 'Catálogos', permission: 'catalogs.write', view: () => import('./modules/catalogs/catalogs.view.js') },
   { path: '/reports', title: 'Reportes', permission: 'reports.view', view: () => import('./modules/reports/reports.view.js') },
   { path: '/users', title: 'Usuarios', permission: 'users.manage', view: () => import('./modules/users/users.view.js') },
 ]);
 
-const STORES = [assetStore, categoryStore, locationStore];
+const STORES = [assetStore, ...CATALOG_STORES];
 
 function profileKey() {
   return shellKey(session.profile);

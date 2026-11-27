@@ -41,10 +41,32 @@ Rules that keep **high cohesion / low coupling**:
 | `profile` | `#/profile` (name, username, photo, password) | any signed-in user |
 | `dashboard` | `#/dashboard` | `assets.read` |
 | `assets` | `#/assets`, `#/assets/new`, `#/assets/:id`, `#/assets/:id/edit` | read / `assets.write` |
-| `catalogs` | `#/catalogs` (departments — stored as `categories`, with leader history — and locations) | `catalogs.write` |
+| `inventory` | `#/inventory` — inventory-taking grid (see below) | `assets.write` |
+| `catalogs` | `#/catalogs` "Catálogos": categories (`assetTypes`), departments (stored as `categories`, with leader history) and locations | `catalogs.write` |
 | `reports` | `#/reports` (PDF, optionally with the first photo of each asset) | `reports.view` |
 | `users` | `#/users` | `users.manage` |
 | `layout` | application shell (header, navigation, preferences) | — |
+
+Interface wording follows the CLAUDE.md terminology: **Artículo** (never "bien"), **Categoría**,
+**Departamento**, **Ubicación**, **Etiqueta**, **Usuario**. The mapping to collections and fields is
+in `docs/data-model.md`.
+
+## Inventory-taking (`#/inventory`)
+
+A grid to walk through the church and verify every article:
+
+- **Round start date** ("Inventario iniciado el", default today, remembered per browser): an article
+  counts as *verified* when its `checkedAt` is on or after that date. A progress bar shows
+  "N de M verificados".
+- Filters: text, category, department, location and *Pendientes / Verificados / Todos*.
+- Each row has three dropdowns — **Ubicación**, **Estado**, **Disponibilidad** — and one
+  **Verificar** button that saves those three fields and stamps `checkedAt` (one write per row,
+  `asset.service.js → checkAsset()`). Changed rows are highlighted until saved.
+- Unsaved choices survive live updates from other users (kept in a per-row draft); after saving,
+  focus moves to the next row so the whole list can be done from the keyboard.
+- Pure helpers (round date, verified check, progress) live in `inventory.model.js` and are tested.
+- Small screens and focus mode: each row becomes a card (same `responsive-table` pattern); on
+  tablets the table scrolls horizontally inside its card instead of overflowing the page.
 
 ## Routing
 
@@ -109,7 +131,8 @@ Photos are resized in the browser (max 1600 px, JPEG) before upload.
   a show/hide-password eye button inside the password field, one primary button and the
   "¿Olvidó su contraseña?" link. No appearance options on this page.
 - **User menu** (avatar button in the header): Mi perfil, appearance, focus mode, text size, Salir.
-- **Theme**: Sistema / Claro / Oscuro. **Palette**: five soft palettes (teal, salvia, lavanda,
+- **Theme**: Sistema / Claro / Oscuro, in the user menu; a sun/moon button in the header switches
+  light ↔ dark in one tap (it shows the mode it will switch to). **Palette**: five soft palettes (teal, salvia, lavanda,
   terracota, cielo); each sets `--primary*`, `--accent`, `--label`, `--bg` for light and dark, all
   with AA contrast. Buttons, links, labels and focus rings take their color from these tokens.
 - Appearance is chosen in the user menu (or Mi perfil) and applies everywhere at once; the login
@@ -120,6 +143,9 @@ Photos are resized in the browser (max 1600 px, JPEG) before upload.
 - Preferences are saved per browser (`localStorage`) and applied by a tiny inline script in
   `index.html` before the first paint (no flash of the wrong theme); `core/preferences.js` owns them
   afterwards. Both use the same storage key and value names.
+- **Responsive**: one layout from 320 px phones to desktops — side navigation becomes a menu
+  button under 800 px, grids collapse to one column, tables become cards, wide tables scroll inside
+  their card, the user menu becomes a full-width sheet on phones.
 - Large touch targets (≥ 44 px; ≥ 52 px on touch screens via `@media (pointer: coarse)`), visible
   labels, inline errors, skip link, `aria-live` notifications, focus moved to the page title on every
   navigation.

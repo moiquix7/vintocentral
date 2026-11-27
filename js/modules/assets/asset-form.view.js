@@ -5,21 +5,17 @@
 import { h, icon, mount, pageHeader } from '../../core/dom.js';
 import { navigate } from '../../core/router.js';
 import { notify, handleError } from '../../core/notify.js';
-import { CONDITIONS, LIMITS } from '../../config/app-config.js';
+import { AVAILABILITY, CONDITIONS, LIMITS } from '../../config/app-config.js';
 import { field, input, select, runSubmit } from '../../shared/form.js';
 import { compressImage } from '../../shared/image.js';
 import { isCameraSupported, takePhoto } from '../../shared/camera.js';
 import { todayIso } from '../../shared/format.js';
 import { assetStore } from './asset.store.js';
-import { categoryStore, locationStore } from '../catalogs/catalog.store.js';
+import { CATALOG_STORES, assetTypeStore, categoryStore, locationStore, catalogOptions, catalogsReady } from '../catalogs/catalog.store.js';
 import { createAsset, updateAsset } from './asset.service.js';
-import { sanitizePhotos } from './asset.model.js';
+import { sanitizePhotos, availabilityOf } from './asset.model.js';
 
 const L = LIMITS.asset;
-
-function catalogOptions(store) {
-  return Object.fromEntries(store.getAll().map((item) => [item.id, item.name]));
-}
 
 /** Photo state: existing (already in Storage) + new (local blobs with preview URLs). */
 function createPhotoState(existing) {
@@ -82,7 +78,7 @@ function photoSection(photos) {
   async function addBlobs(blobs) {
     for (const blob of blobs) {
       if (photos.count >= L.photos) {
-        notify.info(`Máximo ${L.photos} fotos por bien.`);
+        notify.info(`Máximo ${L.photos} fotos por artículo.`);
         break;
       }
       try {
@@ -130,26 +126,26 @@ function missingCatalogsNotice() {
   return h(
     'section',
     { class: 'card empty-state' },
-    h('h2', null, 'Faltan departamentos o ubicaciones'),
-    h('p', null, 'Antes de registrar un bien, cree al menos un departamento y una ubicación.'),
-    h('a', { href: '#/catalogs', class: 'btn btn-primary' }, 'Ir a departamentos y ubicaciones'),
+    h('h2', null, 'Faltan catálogos'),
+    h('p', null, 'Antes de registrar un artículo, cree al menos una categoría, un departamento y una ubicación.'),
+    h('a', { href: '#/catalogs', class: 'btn btn-primary' }, 'Ir a catálogos'),
   );
 }
 
 export async function render(container, { params }) {
-  await Promise.all([assetStore.whenReady(), categoryStore.whenReady(), locationStore.whenReady()]);
+  await Promise.all([assetStore.whenReady(), catalogsReady()]);
   const editing = Boolean(params.id);
   const asset = editing ? assetStore.getById(params.id) : null;
   if (editing && !asset) {
-    notify.info('El bien no existe o fue eliminado.');
+    notify.info('El artículo no existe o fue eliminado.');
     navigate('/assets');
     return undefined;
   }
 
   const backHref = editing ? `#/assets/${encodeURIComponent(asset.id)}` : '#/assets';
-  const title = editing ? `Editar: ${asset.name}` : 'Registrar bien';
+  const title = editing ? `Editar: ${asset.name}` : 'Registrar artículo';
 
-  if (!categoryStore.getAll().length || !locationStore.getAll().length) {
+  if (CATALOG_STORES.some((store) => !store.getAll().length)) {
     mount(container, pageHeader(title), missingCatalogsNotice());
     return undefined;
   }
@@ -159,16 +155,18 @@ export async function render(container, { params }) {
     name: input({ maxlength: L.name, value: v.name ?? '', autocomplete: 'off' }),
     code: input({ maxlength: L.code, value: v.code ?? '', autocomplete: 'off' }),
     description: h('textarea', { rows: '3', maxlength: L.description }, v.description ?? ''),
+    typeId: select(catalogOptions(assetTypeStore), { value: v.typeId ?? '', placeholder: 'Elija…' }),
     categoryId: select(catalogOptions(categoryStore), { value: v.categoryId ?? '', placeholder: 'Elija…' }),
     locationId: select(catalogOptions(locationStore), { value: v.locationId ?? '', placeholder: 'Elija…' }),
     tags: input({ maxlength: L.tags * (L.tagLength + 2), value: (v.tags ?? []).join(', '), autocomplete: 'off' }),
     condition: select(CONDITIONS, { value: v.condition ?? 'good' }),
+    availability: select(AVAILABILITY, { value: availabilityOf(v) }),
     quantity: input({ type: 'number', inputmode: 'numeric', min: 1, max: L.maxQuantity, step: 1, value: v.quantity ?? 1 }),
     value: input({ type: 'number', inputmode: 'decimal', min: 0, max: L.maxValue, step: '0.01', value: v.value ?? '' }),
     acquisitionDate: input({ type: 'date', max: todayIso(), value: v.acquisitionDate ?? '' }),
   };
   const photos = createPhotoState(v.photos);
-  const submit = h('button', { type: 'submit', class: 'btn btn-primary' }, editing ? 'Guardar cambios' : 'Registrar bien');
+  const submit = h('button', { type: 'submit', class: 'btn btn-primary' }, editing ? 'Guardar cambios' : 'Registrar artículo');
 
   const form = h(
     'form',
@@ -177,7 +175,7 @@ export async function render(container, { params }) {
       'fieldset',
       { class: 'card form-grid' },
       h('legend', null, '1. Datos básicos'),
-      field({ label: 'Nombre del bien', name: 'name', control: controls.name, required: true, hint: 'Ej.: Silla plástica blanca' }),
+      field({ label: 'Nombre del artículo', name: 'name', control: controls.name, required: true, hint: 'Ej.: Silla plástica blanca' }),
       field({ label: 'Código de inventario', name: 'code', control: controls.code, hint: 'Opcional. Ej.: SILLA-001' }),
       field({ label: 'Descripción', name: 'description', control: controls.description, wide: true, hint: `Opcional. Máximo ${L.description} caracteres.` }),
     ),
@@ -185,7 +183,8 @@ export async function render(container, { params }) {
       'fieldset',
       { class: 'card form-grid' },
       h('legend', null, '2. Clasificación'),
-      field({ label: 'Departamento', name: 'categoryId', control: controls.categoryId, required: true }),
+      field({ label: 'Categoría', name: 'typeId', control: controls.typeId, required: true, hint: 'Qué tipo de artículo es.' }),
+      field({ label: 'Departamento', name: 'categoryId', control: controls.categoryId, required: true, hint: 'Ministerio responsable.' }),
       field({ label: 'Ubicación', name: 'locationId', control: controls.locationId, required: true }),
       field({ label: 'Etiquetas', name: 'tags', control: controls.tags, wide: true, hint: `Separadas por comas, máximo ${L.tags}. Ej.: donación, jóvenes` }),
     ),
@@ -194,6 +193,7 @@ export async function render(container, { params }) {
       { class: 'card form-grid' },
       h('legend', null, '3. Estado y valor'),
       field({ label: 'Estado', name: 'condition', control: controls.condition, required: true }),
+      field({ label: 'Disponibilidad', name: 'availability', control: controls.availability, required: true }),
       field({ label: 'Cantidad', name: 'quantity', control: controls.quantity, required: true }),
       field({ label: 'Valor unitario', name: 'value', control: controls.value, hint: 'Opcional. Valor estimado de una unidad.' }),
       field({ label: 'Fecha de adquisición', name: 'acquisitionDate', control: controls.acquisitionDate }),
@@ -218,7 +218,7 @@ export async function render(container, { params }) {
       }
     });
     if (ok) {
-      notify.success(editing ? 'Cambios guardados.' : 'Bien registrado.');
+      notify.success(editing ? 'Cambios guardados.' : 'Artículo registrado.');
       navigate(`/assets/${encodeURIComponent(savedId)}`);
     }
   });
