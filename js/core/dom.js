@@ -95,3 +95,42 @@ export function pageHeader(title, ...actions) {
     actions.length ? h('div', { class: 'page-actions' }, actions) : null,
   );
 }
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svgElement(tag, attributes) {
+  const element = document.createElementNS(SVG_NS, tag);
+  for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
+  return element;
+}
+
+/**
+ * Animated inventory box: the lid bobs while a scan line sweeps the barcode label.
+ * Decorative (aria-hidden); the text next to it says what is happening. Keep in sync with the static
+ * copy in index.html (boot screen). Styles: .inv-loader in css/components.css.
+ */
+function inventoryLoaderArt() {
+  const svg = svgElement('svg', { class: 'inv-loader-art', viewBox: '0 0 48 48', 'aria-hidden': 'true', focusable: 'false' });
+  svg.append(
+    svgElement('path', { class: 'inv-box', d: 'M9 19h30v20a3 3 0 0 1-3 3H12a3 3 0 0 1-3-3z' }),
+    svgElement('path', { class: 'inv-lid', d: 'M7 12h34v7H7z' }),
+    svgElement('path', { class: 'inv-code', d: 'M17 26v9M20 26v9M24 26v9M27 26v9M31 26v9' }),
+    svgElement('path', { class: 'inv-scan', d: 'M14 26h20' }),
+  );
+  return svg;
+}
+
+/**
+ * Loading indicator with text. `large` for pages (announced as a status), `small` inside buttons and
+ * messages (the surrounding element announces it).
+ * @param {{ label?: string, size?: 'large' | 'small' }} [options]
+ */
+export function inventoryLoader({ label = 'Cargando…', size = 'large' } = {}) {
+  const large = size === 'large';
+  return h(
+    large ? 'div' : 'span',
+    { class: `inv-loader inv-loader--${large ? 'large' : 'small'}`, role: large ? 'status' : null },
+    inventoryLoaderArt(),
+    h('span', { class: 'inv-loader-text' }, label),
+  );
+}

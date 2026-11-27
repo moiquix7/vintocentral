@@ -10,7 +10,7 @@
  * - Rows saved since the filters last changed stay listed (`keep`), so a row does not vanish from
  *   "Pendientes" after its first change.
  */
-import { h, icon, mount, pageHeader } from '../../core/dom.js';
+import { h, icon, inventoryLoader, mount, pageHeader } from '../../core/dom.js';
 import { handleError } from '../../core/notify.js';
 import { AVAILABILITY, CONDITIONS, LIMITS } from '../../config/app-config.js';
 import { field, input, select } from '../../shared/form.js';
@@ -174,7 +174,7 @@ export async function render(container) {
     });
 
     let detail = null;
-    if (state === 'saving') detail = h('small', { class: 'muted block' }, 'Guardando…');
+    if (state === 'saving') detail = h('small', { class: 'muted block' }, inventoryLoader({ label: 'Guardando…', size: 'small' }));
     else if (state === 'error') {
       detail = h(
         'button',

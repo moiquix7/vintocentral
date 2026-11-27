@@ -1,5 +1,5 @@
 /** Reports page: choose filters (and whether to include photos), preview the count, download the PDF. */
-import { h, icon, mount, pageHeader } from '../../core/dom.js';
+import { h, icon, inventoryLoader, mount, pageHeader } from '../../core/dom.js';
 import { session } from '../../core/session.js';
 import { notify, handleError } from '../../core/notify.js';
 import { AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
@@ -32,7 +32,9 @@ export async function render(container) {
   const includePhotos = h('input', { type: 'checkbox', class: 'switch', id: 'report-photos', checked: true });
   const preview = h('p', { class: 'lead', role: 'status' });
   const generate = h('button', { type: 'button', class: 'btn btn-primary' });
-  const setButtonLabel = (text) => generate.replaceChildren(icon('download'), text);
+  /** Idle: download icon + text. Busy: the animated loader + what is being prepared. */
+  const setButtonLabel = (text, working = false) =>
+    generate.replaceChildren(...(working ? [inventoryLoader({ label: text, size: 'small' })] : [icon('download'), text]));
   setButtonLabel('Descargar PDF');
 
   const currentFilters = () => ({
@@ -44,15 +46,16 @@ export async function render(container) {
     availability: availability.value,
   });
   const selection = () => sortAssets(filterAssets(assetStore.getAll(), currentFilters(), catalogLookups), 'name:asc');
-  const describeFilters = () => {
+  /** The department goes in the report header; the other filters in a muted line ('' when none). */
+  const departmentText = () => (category.value ? catalogLookups.categoryName(category.value) : 'Todos los departamentos');
+  const describeOtherFilters = () => {
     const parts = [
       type.value ? `Tipo de artículo: ${catalogLookups.typeName(type.value)}` : '',
-      category.value ? `Departamento: ${catalogLookups.categoryName(category.value)}` : '',
       place.value ? `Ubicación: ${catalogLookups.locationName(place.value)}` : '',
       condition.value ? `Estado: ${CONDITIONS[condition.value]}` : '',
       availability.value ? `Disponibilidad: ${AVAILABILITY[availability.value]}` : '',
     ].filter(Boolean);
-    return parts.length ? parts.join(' · ') : 'Todos los artículos';
+    return parts.join(' · ');
   };
   let busy = false;
   const updatePreview = () => {
@@ -68,15 +71,16 @@ export async function render(container) {
   generate.addEventListener('click', async () => {
     busy = true;
     generate.disabled = true;
-    setButtonLabel('Preparando…');
+    setButtonLabel('Preparando reporte…', true);
+    generate.setAttribute('aria-busy', 'true');
     try {
       const outcome = await generateInventoryPdf({
         assets: selection(),
-        lookups: catalogLookups,
-        filterSummary: describeFilters(),
+        department: departmentText(),
+        filterSummary: describeOtherFilters(),
         generatedBy: session.profile.displayName,
         includePhotos: includePhotos.checked,
-        onProgress: (done, total) => total && setButtonLabel(`Preparando fotos ${done} de ${total}…`),
+        onProgress: (done, total) => total && setButtonLabel(`Preparando fotos ${done} de ${total}…`, true),
       });
       const warning = photoOutcomeMessage(outcome);
       if (warning) notify.info(warning);
@@ -85,6 +89,7 @@ export async function render(container) {
       handleError(error, 'pdf report');
     } finally {
       busy = false;
+      generate.removeAttribute('aria-busy');
       setButtonLabel('Descargar PDF');
       updatePreview();
     }
@@ -97,7 +102,11 @@ export async function render(container) {
       'section',
       { class: 'card form-grid' },
       h('h2', { class: 'field--wide' }, 'Informe de inventario (PDF)'),
-      h('p', { class: 'muted field--wide' }, 'Incluye detalle de cada artículo: marca, modelo y nro. de serie, tipo, departamento, ubicación, estado, disponibilidad y valor, con un resumen al inicio.'),
+      h(
+        'p',
+        { class: 'muted field--wide' },
+        'Encabezado con el departamento, la fecha y quién lo genera; una tabla con fecha de adquisición, artículo, marca, modelo, nro. de serie, cantidad y estado (con o sin foto); y al final tres espacios para firmar: Anciano del Departamento, Líder entrante y Líder saliente.',
+      ),
       field({ label: 'Tipo de artículo', name: 'typeId', control: type }),
       field({ label: 'Departamento', name: 'categoryId', control: category }),
       field({ label: 'Ubicación', name: 'locationId', control: place }),

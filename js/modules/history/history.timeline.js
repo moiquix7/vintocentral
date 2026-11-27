@@ -5,7 +5,7 @@
  * Each entry reads as one short block: date and time · who · what, then one line per changed field
  * ("Estado: Bueno → Malo"). Text only, no color-only meaning.
  */
-import { h } from '../../core/dom.js';
+import { h, inventoryLoader } from '../../core/dom.js';
 import { formatDateTime } from '../../shared/format.js';
 import { FIELD_LABELS, HISTORY_ACTIONS } from './history.model.js';
 import { listAssetHistory } from './history.service.js';
@@ -67,7 +67,7 @@ export function timeline(entries, { showAsset = false, assetLink = () => null } 
  * @returns {{ node: HTMLElement, refresh: () => Promise<void> }}
  */
 export function assetHistorySection(assetId) {
-  const body = h('div', { 'aria-live': 'polite' }, h('p', { class: 'muted' }, 'Cargando historial…'));
+  const body = h('div', { 'aria-live': 'polite' }, inventoryLoader({ label: 'Cargando historial…' }));
   const node = h(
     'section',
     { class: 'card', 'aria-labelledby': 'asset-history-title' },

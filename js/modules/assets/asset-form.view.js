@@ -5,7 +5,7 @@
  * the service refuses the same name in the same location.
  * New articles get the signed-in user's department by default (it can be changed).
  */
-import { h, icon, mount, pageHeader } from '../../core/dom.js';
+import { h, icon, inventoryLoader, mount, pageHeader } from '../../core/dom.js';
 import { navigate } from '../../core/router.js';
 import { session } from '../../core/session.js';
 import { notify, handleError } from '../../core/notify.js';
@@ -169,7 +169,7 @@ function photoSection(photos) {
         break;
       }
       try {
-        status.textContent = 'Procesando foto…';
+        mount(status, inventoryLoader({ label: 'Procesando foto…', size: 'small' }));
         photos.add(await compressImage(blob));
       } catch (error) {
         handleError(error, 'photo');

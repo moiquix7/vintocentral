@@ -5,19 +5,19 @@
  * Charts follow the eye-friendly rules: one soft color per bar list, segmented bars with a legend that
  * repeats every number and percent (identity is never color alone), and a tooltip on every mark.
  */
-import { h, icon, mount, pageHeader } from '../../core/dom.js';
+import { h, icon, inventoryLoader, mount, pageHeader } from '../../core/dom.js';
 import { session } from '../../core/session.js';
 import { NAV_ITEMS } from '../../config/navigation.js';
 import { assetStore } from '../assets/asset.store.js';
-import { CATALOG_STORES, categoryStore, catalogLookups, catalogsReady } from '../catalogs/catalog.store.js';
+import { CATALOG_STORES, categoryStore, locationStore, catalogLookups, catalogsReady } from '../catalogs/catalog.store.js';
 import { watchPresence } from '../presence/presence.service.js';
 import { formatCurrency, formatNumber } from '../../shared/format.js';
-import { barList, kpi, segmentedBar } from '../../shared/charts.js';
-import { articlesPerDepartment, computeStats } from './dashboard.stats.js';
+import { axisBarChart, barList, kpi, segmentedBar } from '../../shared/charts.js';
+import { articlesPerRecord, computeStats } from './dashboard.stats.js';
 
 /** @param {Array<{ displayName: string }> | null | undefined} users undefined = still loading, null = cannot be read */
 function connectedKpi(users) {
-  if (users === undefined) return kpi('Usuarios conectados', '…', { iconName: 'online' });
+  if (users === undefined) return kpi('Usuarios conectados', inventoryLoader({ label: 'Cargando…', size: 'small' }), { iconName: 'online' });
   if (users === null) return kpi('Usuarios conectados', '—', { iconName: 'online', detail: h('small', { class: 'muted' }, 'No disponible') });
   const names = users.map((user) => user.displayName).join(', ');
   return kpi('Usuarios conectados', formatNumber(users.length), {
@@ -66,7 +66,9 @@ function draw(container, connected) {
       kpi('Necesitan atención', formatNumber(stats.needsAttention), {
         tone: stats.needsAttention ? 'warn' : '',
         iconName: 'alert',
-        detail: h('small', { class: 'muted' }, 'Malo, fuera de servicio, en reparación o extraviado'),
+        detail: h('small', { class: 'muted block' }, 'Malo, fuera de servicio, en reparación o extraviado'),
+        href: '#/assets?filtro=atencion',
+        linkText: stats.needsAttention ? 'Ver la lista' : 'Ver artículos',
       }),
       connectedKpi(connected),
     ),
@@ -91,13 +93,17 @@ function draw(container, connected) {
             segmentedBar('Estado de los artículos (unidades)', stats.byCondition, 'condition'),
             segmentedBar('Disponibilidad (unidades)', stats.byAvailability, 'availability'),
           ),
-          barList('Artículos por departamento', articlesPerDepartment(assetStore.getAll(), categoryStore.getAll())),
           h(
             'div',
             { class: 'grid-2' },
-            barList('Por tipo de artículo (unidades)', stats.byType),
-            barList('Por ubicación (unidades)', stats.byLocation),
+            axisBarChart('Artículos por departamento', articlesPerRecord(assetStore.getAll(), categoryStore.getAll(), 'categoryId', 'Sin departamento'), {
+              axisLabel: 'Número de artículos',
+            }),
+            axisBarChart('Artículos por ubicación', articlesPerRecord(assetStore.getAll(), locationStore.getAll(), 'locationId', 'Sin ubicación'), {
+              axisLabel: 'Número de artículos',
+            }),
           ),
+          barList('Por tipo de artículo (unidades)', stats.byType),
         ],
     shortcuts(),
   );

@@ -1,7 +1,7 @@
 /** Client-side search, filter and sort for the asset list and reports. Pure. */
 import { AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
 import { foldText } from '../../shared/validation.js';
-import { availabilityOf } from './asset.model.js';
+import { availabilityOf, needsAttention } from './asset.model.js';
 
 export const SORT_OPTIONS = Object.freeze({
   'name:asc': 'Nombre (A → Z)',
@@ -25,6 +25,8 @@ export const EMPTY_FILTERS = Object.freeze({
   locationId: '',
   condition: '',
   availability: '',
+  /** true = only articles that need attention (bad condition, under repair or missing). */
+  attention: false,
   sort: 'name:asc',
 });
 
@@ -41,6 +43,7 @@ export function filterAssets(assets, filters, lookups) {
     if (filters.locationId && asset.locationId !== filters.locationId) return false;
     if (filters.condition && asset.condition !== filters.condition) return false;
     if (filters.availability && availabilityOf(asset) !== filters.availability) return false;
+    if (filters.attention && !needsAttention(asset)) return false;
     if (!words.length) return true;
     const haystack = foldText(
       [

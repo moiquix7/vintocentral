@@ -80,7 +80,9 @@ HTML, JavaScript,css, firebase, firebase authentication, firebase firestore, fir
 
 ### DASHBOARD PAGE
 - the dashboard page is available just to administrators and editors, and will provide key indicators on the inventory status, such as total assets, assets by category, assets by department and assets by location, also will show the number of users active/connected to the system, and the number of assets that need attention (e.g., assets that are in poor condition or need maintenance).
-- Display a card where the user can see all departments and the number of assets that own every department in a graph chart horizontal.
+- Display a graph bar horizontal axis = y axis = x, with the number of assets by department.
+- Display a graph bar horizontal axis = y axis = x, with the number of assets by location.
+- turn clickable the card "Necesitan atencion" to navigate to the page that displays the list of assets that need attention, with options to view their details and edit them (if the user has the appropriate permissions).
 
 ### INVENTORY-TAKING PAGE
 - The inventory-taking page will allow users to view and update the status of assets in a grid/table format, with columns for asset name, category, department, location, condition, and availability.
@@ -114,7 +116,13 @@ HTML, JavaScript,css, firebase, firebase authentication, firebase firestore, fir
 7. the save event will be controlled, and if the asset already exists, the system will display a message to let the user know that the asset already exists and will not allow them to create a duplicate record.
 8. Fields to fill: Code, name, description,category (tipo articulo),brand,model,Nro Serie,"Empotrado" (checkbox),"Asegurado"(checkbox),department, location, condition, availability, reason for unavailability (if applicable), tags (optional), and up to 4 images (from gallery or camera).
 
+## REPORTS PAGE
+- The reports page will allow users to generate PDF reports on the inventory status, including asset details. (with image or without imnage), location, and condition.
 
+### REPORT DESIGN
+- The report will include a header with the church name and logo located to the right, and report title, department and report date and reported by located to the left, as well as a footer with the date and page number.
+- The report will display the asset details in a minimalist table format, with columns : Acquisition date, asset name,brand, model,Numero de Serie,Quantity,condition.
+- at the end of the report, three places to sign: one for the elder ("Anciano del Departamento"), one for incoming leader, and one for "Lider Saliente"  of the church.
   
 ## THERMINOLOGY AND GLOSSARY
 - "Articulo": any fixed asset of the church, such as furniture, equipment, vehicles, etc.  

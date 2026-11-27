@@ -2,7 +2,7 @@
  * Accessible form building blocks: labelled fields with hint and inline error,
  * plus helpers to show/clear validation errors.
  */
-import { h, icon as svgIcon } from '../core/dom.js';
+import { h, icon as svgIcon, inventoryLoader } from '../core/dom.js';
 import { ValidationError } from '../core/errors.js';
 import { notify, handleError } from '../core/notify.js';
 
@@ -84,7 +84,7 @@ export function showErrors(form, errors) {
 export async function runSubmit(form, button, action, busyText = 'Guardando…') {
   const originalContent = [...button.childNodes];
   button.disabled = true;
-  button.textContent = busyText;
+  button.replaceChildren(inventoryLoader({ label: busyText, size: 'small' }));
   form.setAttribute('aria-busy', 'true');
   clearErrors(form);
   try {
