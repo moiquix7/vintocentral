@@ -1,5 +1,5 @@
 /** Small pieces shared by the asset views (and the inventory grid): badges, thumbnail, delete flow. */
-import { h, icon } from '../../core/dom.js';
+import { h, icon, inventoryLoader } from '../../core/dom.js';
 import { notify, handleError } from '../../core/notify.js';
 import { AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
 import { confirmDialog } from '../../shared/dialog.js';
@@ -20,14 +20,21 @@ export async function confirmDeleteAsset(asset, button) {
     danger: true,
   });
   if (!confirmed) return false;
-  if (button) button.disabled = true;
+  const original = button ? [...button.childNodes] : [];
+  if (button) {
+    button.disabled = true;
+    button.replaceChildren(inventoryLoader({ label: 'Eliminando…', size: 'small' }));
+  }
   try {
     await deleteAsset(asset);
     notify.success('Artículo eliminado.');
     return true;
   } catch (error) {
     handleError(error, 'delete asset');
-    if (button) button.disabled = false;
+    if (button) {
+      button.disabled = false;
+      button.replaceChildren(...original);
+    }
     return false;
   }
 }

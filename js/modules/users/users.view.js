@@ -2,7 +2,7 @@
  * User administration (admin only): create accounts, change role and department, activate/deactivate,
  * reset password. The department pre-fills "Departamento" when the user registers an article.
  */
-import { h, icon, mount, pageHeader } from '../../core/dom.js';
+import { h, icon, inventoryLoader, mount, pageHeader } from '../../core/dom.js';
 import { session } from '../../core/session.js';
 import { notify, handleError } from '../../core/notify.js';
 import { LIMITS, ROLES } from '../../config/app-config.js';
@@ -126,7 +126,8 @@ function userRow(user, reload) {
 
 export async function render(container) {
   await catalogsReady();
-  const tableBody = h('tbody');
+  const columns = ['Nombre', 'Usuario', 'Correo', 'Rol', 'Departamento', 'Activo', 'Acciones'];
+  const tableBody = h('tbody', null, h('tr', null, h('td', { colspan: String(columns.length) }, inventoryLoader({ label: 'Cargando usuarios…' }))));
   let disposed = false;
 
   async function reload() {
@@ -150,7 +151,7 @@ export async function render(container) {
       h(
         'table',
         { class: 'table responsive-table' },
-        h('thead', null, h('tr', null, ['Nombre', 'Usuario', 'Correo', 'Rol', 'Departamento', 'Activo', 'Acciones'].map((t) => h('th', { scope: 'col' }, t)))),
+        h('thead', null, h('tr', null, columns.map((t) => h('th', { scope: 'col' }, t)))),
         tableBody,
       ),
     ),

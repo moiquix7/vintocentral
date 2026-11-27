@@ -476,3 +476,58 @@ input:hover, select:hover, textarea:hover { border-color: var(--muted); }
 .similar-chosen { display: grid; gap: var(--space-2); justify-items: start; padding-top: var(--space-2); border-top: 1px dashed var(--border); }
 .similar-chosen p { margin: 0; }
 .details--compact { margin: 0; }
+
+/* Dashboard: clickable KPI tile ("Necesitan atención" → list of those articles). */
+.kpi--link { display: block; color: inherit; text-decoration: none; transition: border-color var(--motion), background-color var(--motion); }
+.kpi--link:hover { background: var(--primary-soft); border-color: var(--primary); }
+.kpi--link.kpi--warn:hover { border-left-color: var(--warn); }
+.kpi-link { display: inline-block; margin-top: var(--space-2); color: var(--primary); font-weight: 650; text-decoration: underline; }
+
+/*
+ * Horizontal bar chart with axes (Y = items, X = count). Same 3 columns for the rows and the X axis,
+ * so ticks line up with the bars. Grid lines: one per tick interval (--intervals set by the chart).
+ */
+.axis-chart { --label-col: minmax(90px, 38%); --value-col: 5ch; }
+.axis-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.axis-bars li, .axis-x { display: grid; grid-template-columns: var(--label-col) 1fr var(--value-col); gap: var(--space-2); align-items: center; }
+.axis-track {
+  position: relative; height: 22px; border-left: 2px solid var(--muted);
+  background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(100% / var(--intervals) - 1px), var(--border) calc(100% / var(--intervals) - 1px), var(--border) calc(100% / var(--intervals)));
+}
+.axis-fill { position: absolute; left: 0; top: 4px; bottom: 4px; background: var(--accent); border-radius: 0 4px 4px 0; min-width: 0; }
+.axis-x { margin-top: var(--space-1); }
+.axis-ticks { position: relative; height: 1.4em; border-top: 2px solid var(--muted); }
+.axis-tick { position: absolute; top: 2px; transform: translateX(-50%); font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.axis-tick:first-child { transform: none; }
+.axis-tick:last-child { transform: translateX(-100%); }
+.axis-title { margin: var(--space-1) 0 0; text-align: center; font-size: 0.85rem; color: var(--muted); }
+
+/*
+ * Loading indicator (inventoryLoader() in core/dom.js; static copy in index.html): an inventory box
+ * whose lid bobs while a scan line sweeps its barcode. Slow and soft; no motion with
+ * prefers-reduced-motion or in focus mode (static icon + text).
+ */
+.inv-loader { display: inline-flex; align-items: center; gap: var(--space-2); }
+.inv-loader--large { display: grid; justify-items: center; gap: var(--space-3); padding: var(--space-6) var(--space-4); color: var(--muted); text-align: center; }
+.inv-loader--large .inv-loader-text { font-size: 1.05rem; }
+.inv-loader-art {
+  width: 1.3em; height: 1.3em; flex: none; overflow: visible;
+  fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round;
+}
+.inv-loader--large .inv-loader-art { width: 76px; height: 76px; stroke: var(--primary); stroke-width: 2.2; }
+.inv-loader--large .inv-box { fill: var(--primary-soft); }
+.inv-loader--large .inv-lid { fill: var(--surface); }
+.inv-code { stroke-width: 1.7; opacity: 0.85; }
+.inv-loader--large .inv-code { stroke: var(--label); }
+.inv-scan { stroke-width: 2.4; opacity: 0.9; animation: inv-scan 1.4s ease-in-out infinite alternate; }
+.inv-loader--large .inv-scan { stroke: var(--accent); }
+.inv-lid { transform-box: fill-box; transform-origin: center; animation: inv-lid 1.4s ease-in-out infinite; }
+@keyframes inv-scan { from { transform: translateY(0); } to { transform: translateY(9px); } }
+@keyframes inv-lid { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-3px) rotate(-3deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .inv-scan, .inv-lid { animation: none; }
+}
+:root[data-focus-mode="on"] .inv-scan,
+:root[data-focus-mode="on"] .inv-lid { animation: none; }
+/* Inside a busy button: keep its size steady. */
+.btn .inv-loader { gap: var(--space-2); }

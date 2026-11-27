@@ -56,3 +56,10 @@ test('sorting by catalog names, condition and availability; ties by name', () =>
   assert.deepEqual(ids('condition:desc'), ['2', '3', '1']);
   assert.deepEqual(ids('availability:asc'), ['1', '3', '2']); // available (missing field), in_use, loaned
 });
+
+test('attention filter keeps only articles in bad condition, under repair or missing', () => {
+  const list = [...assets, { id: '9', name: 'Proyector', condition: 'good', availability: 'in_repair' }];
+  const names = filterAssets(list, { ...EMPTY_FILTERS, attention: true }, lookups).map((a) => a.name);
+  assert.deepEqual(names.sort(), ['Micrófono', 'Proyector']);
+  assert.equal(filterAssets(list, EMPTY_FILTERS, lookups).length, list.length, 'off by default');
+});

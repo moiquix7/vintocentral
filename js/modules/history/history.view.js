@@ -3,7 +3,7 @@
  * auditing. Text filter (article or user) and action filter run on the loaded entries;
  * "Cargar más" loads the next LIMITS.history.pageSize entries.
  */
-import { h, icon, mount, pageHeader } from '../../core/dom.js';
+import { h, icon, inventoryLoader, mount, pageHeader } from '../../core/dom.js';
 import { handleError } from '../../core/notify.js';
 import { LIMITS } from '../../config/app-config.js';
 import { select } from '../../shared/form.js';
@@ -45,8 +45,8 @@ export async function render(container) {
     more.hidden = !hasMore;
     more.disabled = loading;
     if (!shown.length) {
-      const message = loading ? 'Cargando historial…' : entries.length ? 'Ningún cambio coincide con la búsqueda.' : 'Todavía no hay cambios registrados.';
-      mount(results, h('p', { class: 'card empty-state' }, message), more);
+      const message = entries.length ? 'Ningún cambio coincide con la búsqueda.' : 'Todavía no hay cambios registrados.';
+      mount(results, loading ? h('section', { class: 'card' }, inventoryLoader({ label: 'Cargando historial…' })) : h('p', { class: 'card empty-state' }, message), more);
       return;
     }
     mount(results, h('section', { class: 'card' }, timeline(shown, { showAsset: true, assetLink })), more);

@@ -33,7 +33,18 @@
   </head>
   <body>
     <div id="app" aria-busy="true">
-      <p class="boot">Cargando…</p>
+      <!-- Static copy of inventoryLoader() (js/core/dom.js): shown until the app starts. -->
+      <div class="boot">
+        <div class="inv-loader inv-loader--large" role="status">
+          <svg class="inv-loader-art" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+            <path class="inv-box" d="M9 19h30v20a3 3 0 0 1-3 3H12a3 3 0 0 1-3-3z" />
+            <path class="inv-lid" d="M7 12h34v7H7z" />
+            <path class="inv-code" d="M17 26v9M20 26v9M24 26v9M27 26v9M31 26v9" />
+            <path class="inv-scan" d="M14 26h20" />
+          </svg>
+          <span class="inv-loader-text">Cargando…</span>
+        </div>
+      </div>
     </div>
     <div id="toasts" class="toast-region" aria-live="polite"></div>
     <script>

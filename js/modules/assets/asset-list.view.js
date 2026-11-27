@@ -1,7 +1,10 @@
 /**
  * Asset list with search, filters, sorting and incremental paging.
  * Last column "Acciones": Editar (assets.write) and Eliminar (assets.delete, admin only); hidden for viewers.
+ * `#/assets?filtro=atencion` (dashboard "Necesitan atención") opens it showing only those articles.
  */
+
+const ATTENTION_QUERY = Object.freeze({ key: 'filtro', value: 'atencion' });
 import { h, icon, mount, pageHeader } from '../../core/dom.js';
 import { session } from '../../core/session.js';
 import { AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
@@ -60,8 +63,9 @@ function row(asset, permissions) {
   );
 }
 
-export async function render(container) {
+export async function render(container, { query } = {}) {
   await Promise.all([assetStore.whenReady(), catalogsReady()]);
+  if (query?.get(ATTENTION_QUERY.key) === ATTENTION_QUERY.value) filters = { ...EMPTY_FILTERS, attention: true };
   let visible = PAGE_SIZE;
   const permissions = { canEdit: session.can('assets.write'), canDelete: session.can('assets.delete') };
   const showActions = permissions.canEdit || permissions.canDelete;
@@ -80,6 +84,8 @@ export async function render(container) {
   const condition = select(CONDITIONS, { value: filters.condition, placeholder: 'Todos los estados', 'aria-label': 'Estado' });
   const availability = select(AVAILABILITY, { value: filters.availability, placeholder: 'Toda disponibilidad', 'aria-label': 'Disponibilidad' });
   const sort = select(SORT_OPTIONS, { value: filters.sort, 'aria-label': 'Ordenar por' });
+  const attention = h('input', { type: 'checkbox', class: 'switch', checked: filters.attention });
+  const attentionToggle = h('label', { class: 'switch-label' }, attention, 'Solo los que necesitan atención');
   const clear = h('button', { type: 'button', class: 'btn btn-link' }, 'Limpiar filtros');
   const summary = h('p', { class: 'muted', role: 'status' });
   const results = h('div', { class: 'results' });
@@ -143,10 +149,12 @@ export async function render(container) {
   condition.addEventListener('change', () => update({ condition: condition.value }));
   availability.addEventListener('change', () => update({ availability: availability.value }));
   sort.addEventListener('change', () => update({ sort: sort.value }));
+  attention.addEventListener('change', () => update({ attention: attention.checked }));
   clear.addEventListener('click', () => {
     search.value = '';
     [type, category, locationSelect, condition, availability].forEach((control) => (control.value = ''));
     sort.value = EMPTY_FILTERS.sort;
+    attention.checked = false;
     update({ ...EMPTY_FILTERS });
   });
 
@@ -160,7 +168,7 @@ export async function render(container) {
       'section',
       { class: 'card toolbar', 'aria-label': 'Búsqueda y filtros' },
       h('div', { class: 'search-box' }, icon('search'), search),
-      h('div', { class: 'filters' }, type, category, locationSelect, condition, availability, sort, clear),
+      h('div', { class: 'filters' }, type, category, locationSelect, condition, availability, sort, attentionToggle, clear),
     ),
     summary,
     results,

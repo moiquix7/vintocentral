@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { articlesPerDepartment, computeStats } from '../js/modules/dashboard/dashboard.stats.js';
+import { articlesPerRecord, computeStats } from '../js/modules/dashboard/dashboard.stats.js';
 import { percentOf } from '../js/shared/format.js';
 import {
   sanitizeCatalogItem,
@@ -178,14 +178,14 @@ test('admin cannot lock themselves out', () => {
   assert.ok(validateProfileChange({ targetUid: 'other', currentUid: 'me', role: 'root', active: true }));
 });
 
-test('articlesPerDepartment lists every department (also empty ones), largest first', () => {
+test('articlesPerRecord lists every department / location (also empty ones), largest first', () => {
   const departments = [{ id: 'd1', name: 'Música' }, { id: 'd2', name: 'Jóvenes' }, { id: 'd3', name: 'Escuela Sabática' }];
   const assets = [{ categoryId: 'd2', quantity: 10 }, { categoryId: 'd2' }, { categoryId: 'd1' }];
-  assert.deepEqual(articlesPerDepartment(assets, departments), [
+  assert.deepEqual(articlesPerRecord(assets, departments, 'categoryId', 'Sin departamento'), [
     { key: 'd2', label: 'Jóvenes', units: 2 },
     { key: 'd1', label: 'Música', units: 1 },
     { key: 'd3', label: 'Escuela Sabática', units: 0 },
   ]);
-  const withOrphan = articlesPerDepartment([...assets, { categoryId: 'gone' }], departments);
+  const withOrphan = articlesPerRecord([...assets, { categoryId: 'gone' }], departments, 'categoryId', 'Sin departamento');
   assert.deepEqual(withOrphan.at(-1), { key: '', label: 'Sin departamento', units: 1 });
 });

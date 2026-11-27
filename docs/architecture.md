@@ -77,12 +77,18 @@ Only **admin** and **editor** (`dashboard.view`); it is their landing page after
 
 - KPIs: articles, units, estimated value, **needs attention** (condition *Malo* / *Fuera de
   servicio*, or availability *En reparación* / *Extraviado*) and **users connected now**.
+- The **Necesitan atención** card is a link to `#/assets?filtro=atencion`: the article list showing
+  only those articles (filter "Solo los que necesitan atención", which the user can turn off), each
+  with Ver (its name) and Editar / Eliminar according to the role. `needsAttention()` lives in
+  `asset.model.js` (shared by the dashboard and the list).
 - Charts: 100 % segmented bars for *Estado* and *Disponibilidad* (legend with number and %, so
-  identity is never color alone) and horizontal bar lists (units) by Tipo de artículo and Ubicación
-  (each bar has a tooltip with units and share).
-- **Artículos por departamento** card: **every** department (also those with 0 articles), with the
-  number of articles registered in each, as horizontal bars (largest first; "Sin departamento" is
-  added only when some article has none).
+  identity is never color alone) and a horizontal bar list (units) by Tipo de artículo.
+- **Artículos por departamento** and **Artículos por ubicación**: horizontal bar charts with axes —
+  each department / location on the **Y axis**, the number of articles on the **X axis** (a "nice"
+  0…max scale with 3–6 ticks and faint grid lines, `shared/chart-scale.js`, tested). **Every**
+  department / location is listed, also those with 0 articles (largest first; "Sin departamento" /
+  "Sin ubicación" only when some article has none). One series → one color, no legend (the title
+  names it); every bar shows its number and has a tooltip.
 - Quick links to the features the role may use (same permission list as the navigation).
 - Pure computations live in `dashboard.stats.js` and `presence.model.js` (tested).
 
@@ -120,7 +126,8 @@ Audit trail of every change to an article, for **admin** and **editor** (`histor
   Estado, Disponibilidad, Cantidad, Valor unitario and a last **Acciones** column: **Editar**
   (`assets.write`) and **Eliminar** (`assets.delete`, admin only — same confirmation as the detail).
   Viewers see no Acciones column.
-- Search (also by marca, modelo and nro. de serie), filters and sorting as before.
+- Search (also by marca, modelo and nro. de serie), filters and sorting as before, plus the switch
+  **Solo los que necesitan atención** (turned on by `#/assets?filtro=atencion`, the dashboard card).
 
 ### Registrar artículo (`#/assets/new`)
 
@@ -190,6 +197,8 @@ longer exists; like any unknown route it goes to `#/login`, which forwards a sig
 Hash routing (`#/path`) is used so the app works on **GitHub Pages** (which cannot rewrite URLs) and on
 Firebase Hosting alike.
 
+- A route may carry a query after `?` (e.g. `#/assets?filtro=atencion`); the router matches the
+  path without it and passes `query` (`URLSearchParams`) to the view next to `params`.
 - Unknown route → redirect to `#/login` (project rule). The login page forwards an already
   signed-in user to their **home**: `#/dashboard` for admin/editor, `#/home` for viewer
   (`homePath()` in `app.js`, given to the router).
@@ -219,11 +228,16 @@ rules enforce it** (`firestore.rules`, `storage.rules`) — the UI is never the 
 ## PDF report with photos
 
 - jsPDF + AutoTable are loaded from cdnjs only when a report is generated.
-- Columns (A4 landscape): [Foto], Código, Nombre, **Marca / Modelo / Serie**, Tipo de artículo,
-  Departamento, Ubicación, Estado, Disponibilidad, Cantidad, Valor unitario, Valor total.
-  Marca, modelo and nro. de serie share one column, one labelled line each ("Marca: Yamaha",
-  "Modelo: MG10XU", "Serie: 12345"), only the ones the article has; "—" when it has none.
-  Three separate columns would not fit legibly next to the others.
+- Design (CLAUDE.md "REPORT DESIGN"), A4 landscape, minimalist:
+  - **Header** — left: report title, *Departamento* (the department filter, or "Todos los
+    departamentos"), report date and *Reportado por*; right: the IASD logo (`APP.logo`) and the
+    church name. A muted line lists the other filters only when some are applied. If the logo cannot
+    be loaded the report is still produced without it.
+  - **Table** — [Foto], Fecha de adquisición, Artículo, Marca, Modelo, Nro. de serie, Cantidad,
+    Estado. Plain style: soft header, thin row separators, no value columns.
+  - **Signatures** after the table (on a new page if they do not fit): three lines labelled
+    *Anciano del Departamento*, *Líder entrante* and *Líder saliente*.
+  - **Footer** on every page: generation date (left) and "Página X de Y" (right).
 - With "Incluir fotos" checked, the first photo of each asset is downloaded (`fetch`, 4 at a time,
   progress shown on the button), center-cropped to a 240 px square JPEG and drawn in the first
   column. Rows are taller so the photo fits.
@@ -278,6 +292,15 @@ Photos are resized in the browser (max 1600 px, JPEG) before upload.
   color; the user menu is wide with tall rows. The chosen text stays on **one line** (never wraps
   or spills over the border); option labels are kept short (e.g. "Actualidad", not
   "Actualidad (sigue)") so they fit.
+- **Loading indicator** (`inventoryLoader()` in `core/dom.js`, styles `.inv-loader`): an inventory
+  box whose lid bobs gently while a scan line sweeps its barcode label, always with a text
+  ("Cargando…", "Guardando…"). Two sizes: `large` (pages, `role="status"`) and `small` (inside buttons
+  and messages). Used everywhere the user waits: app start (`index.html` keeps a static copy of the
+  same SVG), page changes slower than 250 ms (the router shows it in the content area), every
+  `runSubmit()` button (save, sign in, create user, records), deleting an article, the PDF report,
+  photo processing, the change history, the inventory grid while a row saves, the user list and the
+  connected-users tile. Built with `createElementNS` (never `innerHTML`). The animation stops (static
+  icon + text) with *prefers-reduced-motion* and in focus mode.
 - Forms placed inside narrow cards adapt to the **card width**, not the screen width (CSS container
   queries). Example: the department leader editor shows Desde / Hasta / Quitar in one row only
   when the card is wide; otherwise Desde and Hasta share a row and Quitar goes below; in very

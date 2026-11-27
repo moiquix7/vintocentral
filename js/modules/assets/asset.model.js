@@ -2,7 +2,15 @@
  * Asset model: whitelisting, sanitising and validation. Pure (no DOM, no Firebase).
  * The field list and limits must match `validAsset()` in firestore.rules.
  */
-import { AVAILABILITY, CONDITIONS, DEFAULT_AVAILABILITY, LIMITS, UNAVAILABLE } from '../../config/app-config.js';
+import {
+  ATTENTION_AVAILABILITY,
+  ATTENTION_CONDITIONS,
+  AVAILABILITY,
+  CONDITIONS,
+  DEFAULT_AVAILABILITY,
+  LIMITS,
+  UNAVAILABLE,
+} from '../../config/app-config.js';
 import { cleanText, cleanMultiline, foldText, toNumber, isIsoDate } from '../../shared/validation.js';
 
 const L = LIMITS.asset;
@@ -150,6 +158,11 @@ export function findSimilarAssets(assets, text, { limit = 6, excludeId = null, m
 /** Availability of a stored article; old articles without the field count as available. */
 export function availabilityOf(asset) {
   return Object.hasOwn(AVAILABILITY, asset?.availability) ? asset.availability : DEFAULT_AVAILABILITY;
+}
+
+/** An article needs attention when it is in bad condition, under repair or missing. */
+export function needsAttention(asset) {
+  return ATTENTION_CONDITIONS.includes(asset?.condition) || ATTENTION_AVAILABILITY.includes(availabilityOf(asset));
 }
 
 /** Fields the inventory-taking grid may change (the service adds checkedAt and the stamps). */

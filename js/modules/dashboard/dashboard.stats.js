@@ -1,6 +1,8 @@
 /** Dashboard indicators computed from the in-memory asset list. Pure. */
-import { ATTENTION_AVAILABILITY, ATTENTION_CONDITIONS, AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
-import { availabilityOf } from '../assets/asset.model.js';
+import { AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
+import { availabilityOf, needsAttention } from '../assets/asset.model.js';
+
+export { needsAttention };
 
 /**
  * Groups by `keyOf`, summing quantities (units). Sorted by units descending.
@@ -27,30 +29,27 @@ function unitsPerOption(assets, options, valueOf) {
 }
 
 /**
- * Every department (also those with 0 articles) with the number of articles registered in it.
- * Largest first, then A → Z. "Sin departamento" is added only when some article has none
- * (or points to a department that no longer exists).
+ * Every record of a catalog (also those with 0 articles) with the number of articles that use it.
+ * Largest first, then A → Z. `orphanLabel` is added only when some article has no valid record
+ * (empty, or a record that no longer exists).
  * @param {Array<object>} assets
- * @param {Array<{ id: string, name: string }>} departments
+ * @param {Array<{ id: string, name: string }>} records departments or locations
+ * @param {string} field asset field holding the record id (categoryId, locationId)
+ * @param {string} orphanLabel e.g. "Sin departamento"
  * @returns {Array<{ key: string, label: string, units: number }>} `units` = number of articles
  */
-export function articlesPerDepartment(assets, departments) {
-  const counts = new Map(departments.map((department) => [department.id, 0]));
+export function articlesPerRecord(assets, records, field, orphanLabel) {
+  const counts = new Map(records.map((record) => [record.id, 0]));
   let orphans = 0;
   for (const asset of assets) {
-    if (counts.has(asset.categoryId)) counts.set(asset.categoryId, counts.get(asset.categoryId) + 1);
+    if (counts.has(asset[field])) counts.set(asset[field], counts.get(asset[field]) + 1);
     else orphans += 1;
   }
-  const rows = departments
-    .map((department) => ({ key: department.id, label: department.name, units: counts.get(department.id) }))
+  const rows = records
+    .map((record) => ({ key: record.id, label: record.name, units: counts.get(record.id) }))
     .sort((a, b) => b.units - a.units || a.label.localeCompare(b.label));
-  if (orphans) rows.push({ key: '', label: 'Sin departamento', units: orphans });
+  if (orphans) rows.push({ key: '', label: orphanLabel, units: orphans });
   return rows;
-}
-
-/** An article needs attention when it is in bad condition, under repair or missing. */
-export function needsAttention(asset) {
-  return ATTENTION_CONDITIONS.includes(asset.condition) || ATTENTION_AVAILABILITY.includes(availabilityOf(asset));
 }
 
 function quantityOf(asset) {

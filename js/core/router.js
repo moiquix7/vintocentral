@@ -2,7 +2,8 @@
  * Hash router (#/path). Works on GitHub Pages and Firebase Hosting without server rewrites.
  *
  * Route: { path: '/assets/:id', title, view: () => import(...), public?, permission? }
- * View module: export async function render(container, { params }) → optional cleanup function.
+ * View module: export async function render(container, { params, query }) → optional cleanup function.
+ * `query` is the part after "?" (e.g. #/assets?filtro=atencion) as URLSearchParams; it never affects matching.
  *
  * Rules: unknown route → #/login; not signed in → #/login; missing permission → home page.
  * The home page depends on the role, so the app gives the router a `home()` resolver.
@@ -10,6 +11,10 @@
 import { session } from './session.js';
 import { notify, handleError } from './notify.js';
 import { APP } from '../config/app-config.js';
+import { inventoryLoader, mount } from './dom.js';
+
+/** A page that takes longer than this to appear shows the loading indicator meanwhile. */
+const SLOW_RENDER_MS = 250;
 
 export const LOGIN_PATH = '/login';
 
@@ -55,14 +60,15 @@ function match(path) {
   return null;
 }
 
-function currentPath() {
-  const path = location.hash.replace(/^#/, '');
-  return path.startsWith('/') ? path : LOGIN_PATH;
+/** Current hash split into the path (used for matching) and its query string. */
+function currentLocation() {
+  const [rawPath, search = ''] = location.hash.replace(/^#/, '').split('?');
+  return { path: rawPath.startsWith('/') ? rawPath : LOGIN_PATH, query: new URLSearchParams(search) };
 }
 
 async function render() {
   const token = ++renderToken;
-  const path = currentPath();
+  const { path, query } = currentLocation();
   const found = match(path);
 
   if (!found) return redirect(LOGIN_PATH);
@@ -81,11 +87,17 @@ async function render() {
   }
   cleanup = null;
 
+  // Waiting for data (stores, Firestore) or for the view's code: show the loader if it takes a while.
+  let outlet = null;
+  const slowTimer = setTimeout(() => {
+    if (token === renderToken && outlet) mount(outlet, inventoryLoader({ label: 'Cargando…' }));
+  }, SLOW_RENDER_MS);
   try {
+    outlet = resolveOutlet(route, path);
     const module = await route.view();
     if (token !== renderToken) return; // a newer navigation started meanwhile
-    const outlet = resolveOutlet(route, path);
-    const result = await module.render(outlet, { params });
+    const result = await module.render(outlet, { params, query });
+    clearTimeout(slowTimer);
     if (token !== renderToken) {
       if (typeof result === 'function') result();
       return;
@@ -95,6 +107,8 @@ async function render() {
     outlet.querySelector('h1')?.focus({ preventScroll: false });
   } catch (error) {
     handleError(error, `render ${path}`);
+  } finally {
+    clearTimeout(slowTimer);
   }
 }
 
