@@ -1,4 +1,7 @@
-/** User administration (admin only): create accounts, change role, activate/deactivate, reset password. */
+/**
+ * User administration (admin only): create accounts, change role and department, activate/deactivate,
+ * reset password. The department pre-fills "Departamento" when the user registers an article.
+ */
 import { h, icon, mount, pageHeader } from '../../core/dom.js';
 import { session } from '../../core/session.js';
 import { notify, handleError } from '../../core/notify.js';
@@ -7,6 +10,14 @@ import { field, input, select, runSubmit } from '../../shared/form.js';
 import { confirmDialog } from '../../shared/dialog.js';
 import { avatar } from '../../shared/avatar.js';
 import { listUsers, createUser, updateUserAccess, sendPasswordReset } from './user.service.js';
+import { categoryStore, catalogOptions, catalogsReady } from '../catalogs/catalog.store.js';
+
+const NO_DEPARTMENT = 'Sin departamento';
+
+/** Department dropdown ("Departamentos" are stored in `categories`). */
+function departmentSelect(value, props = {}) {
+  return select(catalogOptions(categoryStore), { value: value ?? '', placeholder: NO_DEPARTMENT, ...props });
+}
 
 const L = LIMITS.user;
 
@@ -16,6 +27,7 @@ function createForm(onCreated) {
     username: input({ maxlength: L.usernameMax, autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false' }),
     email: input({ type: 'email', maxlength: L.email, autocomplete: 'off' }),
     role: select(ROLES, { value: 'viewer' }),
+    departmentId: departmentSelect(''),
     password: input({ type: 'text', minlength: L.minPassword, maxlength: L.maxPassword, autocomplete: 'new-password' }),
   };
   const submit = h('button', { type: 'submit', class: 'btn btn-primary' }, icon('plus'), 'Crear usuario');
@@ -27,6 +39,7 @@ function createForm(onCreated) {
     field({ label: 'Nombre de usuario', name: 'username', control: controls.username, required: true, hint: 'Con este nombre ingresará. Ej.: maria.lopez' }),
     field({ label: 'Correo electrónico', name: 'email', control: controls.email, required: true, hint: 'Para recuperar la contraseña.' }),
     field({ label: 'Rol', name: 'role', control: controls.role, required: true, hint: 'Consulta: solo ve artículos y reportes. Editor: tablero, registra y modifica. Administrador: todo.' }),
+    field({ label: 'Departamento', name: 'departmentId', control: controls.departmentId, hint: 'Opcional. Se propone al registrar un artículo (puede cambiarse).' }),
     field({ label: 'Contraseña temporal', name: 'password', control: controls.password, required: true, hint: `Mínimo ${L.minPassword} caracteres. Entréguela a la persona y pídale cambiarla.` }),
     h('div', { class: 'field--wide button-row' }, submit),
   );
@@ -46,10 +59,14 @@ function userRow(user, reload) {
   const isSelf = user.uid === session.user.uid;
   const role = select(ROLES, { value: user.role, 'aria-label': `Rol de ${user.displayName}`, disabled: isSelf });
   const active = h('input', { type: 'checkbox', class: 'switch', checked: user.active === true, disabled: isSelf, 'aria-label': `Cuenta activa de ${user.displayName}` });
+  // An admin may also set their own department (role and active stay locked for themself).
+  const department = departmentSelect(user.departmentId, { 'aria-label': `Departamento de ${user.displayName}` });
+  const current = () => ({ role: role.value, active: active.checked, departmentId: department.value });
 
   async function apply(next) {
     role.disabled = true;
     active.disabled = true;
+    department.disabled = true;
     try {
       await updateUserAccess(user.uid, next);
       notify.success('Acceso actualizado.');
@@ -59,7 +76,8 @@ function userRow(user, reload) {
     reload();
   }
 
-  role.addEventListener('change', () => apply({ role: role.value, active: active.checked }));
+  role.addEventListener('change', () => apply(current()));
+  department.addEventListener('change', () => apply(current()));
   active.addEventListener('change', async () => {
     if (!active.checked) {
       const confirmed = await confirmDialog({
@@ -73,7 +91,7 @@ function userRow(user, reload) {
         return;
       }
     }
-    apply({ role: role.value, active: active.checked });
+    apply(current());
   });
 
   const reset = h('button', { type: 'button', class: 'btn btn-secondary btn-small' }, icon('key'), 'Restablecer contraseña');
@@ -100,12 +118,14 @@ function userRow(user, reload) {
     h('td', { dataset: { label: 'Usuario' } }, user.username ? `@${user.username}` : '—'),
     h('td', { dataset: { label: 'Correo' } }, user.email),
     h('td', { dataset: { label: 'Rol' } }, role),
+    h('td', { dataset: { label: 'Departamento' } }, department),
     h('td', { dataset: { label: 'Activo' } }, active),
     h('td', { dataset: { label: 'Acciones' } }, reset),
   );
 }
 
 export async function render(container) {
+  await catalogsReady();
   const tableBody = h('tbody');
   let disposed = false;
 
@@ -130,7 +150,7 @@ export async function render(container) {
       h(
         'table',
         { class: 'table responsive-table' },
-        h('thead', null, h('tr', null, ['Nombre', 'Usuario', 'Correo', 'Rol', 'Activo', 'Acciones'].map((t) => h('th', { scope: 'col' }, t)))),
+        h('thead', null, h('tr', null, ['Nombre', 'Usuario', 'Correo', 'Rol', 'Departamento', 'Activo', 'Acciones'].map((t) => h('th', { scope: 'col' }, t)))),
         tableBody,
       ),
     ),

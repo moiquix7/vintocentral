@@ -2,13 +2,11 @@
 import { h, icon, mount, pageHeader } from '../../core/dom.js';
 import { session } from '../../core/session.js';
 import { navigate } from '../../core/router.js';
-import { notify, handleError } from '../../core/notify.js';
+import { notify } from '../../core/notify.js';
 import { formatCurrency, formatDate, formatDateTime, formatNumber } from '../../shared/format.js';
-import { confirmDialog } from '../../shared/dialog.js';
 import { assetStore } from './asset.store.js';
 import { catalogLookups, catalogsReady } from '../catalogs/catalog.store.js';
-import { deleteAsset } from './asset.service.js';
-import { availabilityBadge, conditionBadge } from './asset-ui.js';
+import { availabilityBadge, conditionBadge, confirmDeleteAsset } from './asset-ui.js';
 import { availabilityOf, isUnavailable } from './asset.model.js';
 import { assetHistorySection } from '../history/history.timeline.js';
 
@@ -36,23 +34,10 @@ function gallery(photos) {
 }
 
 async function onDelete(asset, button) {
-  const confirmed = await confirmDialog({
-    title: 'Eliminar artículo',
-    message: `¿Seguro que desea eliminar "${asset.name}"? Esta acción no se puede deshacer.`,
-    confirmText: 'Eliminar',
-    danger: true,
-  });
-  if (!confirmed) return;
-  button.disabled = true;
-  try {
-    await deleteAsset(asset);
-    notify.success('Artículo eliminado.');
-    navigate('/assets');
-  } catch (error) {
-    handleError(error, 'delete asset');
-    button.disabled = false;
-  }
+  if (await confirmDeleteAsset(asset, button)) navigate('/assets');
 }
+
+const yesNo = (value) => (value === true ? 'Sí' : 'No');
 
 /** @param {HTMLElement | null} historyNode "Historial de cambios" card (admin/editor only) */
 function draw(container, asset, historyNode) {
@@ -81,7 +66,12 @@ function draw(container, asset, historyNode) {
           'dl',
           { class: 'details' },
           detailRow('Código', asset.code),
-          detailRow('Categoría', catalogLookups.typeName(asset.typeId)),
+          detailRow('Marca', asset.brand),
+          detailRow('Modelo', asset.model),
+          detailRow('Nro. de serie', asset.serialNumber),
+          detailRow('Empotrado', yesNo(asset.builtIn)),
+          detailRow('Asegurado', yesNo(asset.insured)),
+          detailRow('Tipo de artículo', catalogLookups.typeName(asset.typeId)),
           detailRow('Departamento', catalogLookups.categoryName(asset.categoryId)),
           detailRow('Ubicación', catalogLookups.locationName(asset.locationId)),
           detailRow('Estado', conditionBadge(asset.condition)),

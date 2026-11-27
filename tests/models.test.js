@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeStats } from '../js/modules/dashboard/dashboard.stats.js';
+import { articlesPerDepartment, computeStats } from '../js/modules/dashboard/dashboard.stats.js';
 import { percentOf } from '../js/shared/format.js';
 import {
   sanitizeCatalogItem,
@@ -139,7 +139,7 @@ test('year options, current leaders, period text and legacy fields', () => {
 
 test('new user validation', () => {
   const user = sanitizeNewUser({ displayName: 'Ana', username: 'Ana', email: ' ANA@Iglesia.org ', role: 'editor', password: '12345678', extra: 1 });
-  assert.deepEqual(Object.keys(user).sort(), ['displayName', 'email', 'password', 'role', 'username']);
+  assert.deepEqual(Object.keys(user).sort(), ['departmentId', 'displayName', 'email', 'password', 'role', 'username']);
   assert.equal(user.email, 'ana@iglesia.org');
   assert.equal(user.username, 'ana');
   assert.deepEqual(validateNewUser(user), {});
@@ -176,4 +176,16 @@ test('admin cannot lock themselves out', () => {
   assert.ok(validateProfileChange({ targetUid: 'me', currentUid: 'me', role: 'admin', active: false }));
   assert.equal(validateProfileChange({ targetUid: 'other', currentUid: 'me', role: 'viewer', active: false }), null);
   assert.ok(validateProfileChange({ targetUid: 'other', currentUid: 'me', role: 'root', active: true }));
+});
+
+test('articlesPerDepartment lists every department (also empty ones), largest first', () => {
+  const departments = [{ id: 'd1', name: 'Música' }, { id: 'd2', name: 'Jóvenes' }, { id: 'd3', name: 'Escuela Sabática' }];
+  const assets = [{ categoryId: 'd2', quantity: 10 }, { categoryId: 'd2' }, { categoryId: 'd1' }];
+  assert.deepEqual(articlesPerDepartment(assets, departments), [
+    { key: 'd2', label: 'Jóvenes', units: 2 },
+    { key: 'd1', label: 'Música', units: 1 },
+    { key: 'd3', label: 'Escuela Sabática', units: 0 },
+  ]);
+  const withOrphan = articlesPerDepartment([...assets, { categoryId: 'gone' }], departments);
+  assert.deepEqual(withOrphan.at(-1), { key: '', label: 'Sin departamento', units: 1 });
 });

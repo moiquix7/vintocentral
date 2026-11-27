@@ -46,7 +46,7 @@ export async function render(container) {
   const selection = () => sortAssets(filterAssets(assetStore.getAll(), currentFilters(), catalogLookups), 'name:asc');
   const describeFilters = () => {
     const parts = [
-      type.value ? `Categoría: ${catalogLookups.typeName(type.value)}` : '',
+      type.value ? `Tipo de artículo: ${catalogLookups.typeName(type.value)}` : '',
       category.value ? `Departamento: ${catalogLookups.categoryName(category.value)}` : '',
       place.value ? `Ubicación: ${catalogLookups.locationName(place.value)}` : '',
       condition.value ? `Estado: ${CONDITIONS[condition.value]}` : '',
@@ -97,8 +97,8 @@ export async function render(container) {
       'section',
       { class: 'card form-grid' },
       h('h2', { class: 'field--wide' }, 'Informe de inventario (PDF)'),
-      h('p', { class: 'muted field--wide' }, 'Incluye detalle de cada artículo: categoría, departamento, ubicación, estado, disponibilidad y valor, con un resumen al inicio.'),
-      field({ label: 'Categoría', name: 'typeId', control: type }),
+      h('p', { class: 'muted field--wide' }, 'Incluye detalle de cada artículo: marca, modelo y nro. de serie, tipo, departamento, ubicación, estado, disponibilidad y valor, con un resumen al inicio.'),
+      field({ label: 'Tipo de artículo', name: 'typeId', control: type }),
       field({ label: 'Departamento', name: 'categoryId', control: category }),
       field({ label: 'Ubicación', name: 'locationId', control: place }),
       field({ label: 'Estado', name: 'condition', control: condition }),

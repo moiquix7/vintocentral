@@ -42,7 +42,7 @@ import {
 
 const PAGE_SIZE = 50;
 const ROUND_KEY = 'vintocentral.inventoryRound';
-const COLUMNS = Object.freeze(['Artículo', 'Categoría', 'Departamento', 'Ubicación', 'Estado', 'Disponibilidad', 'Motivo / Observaciones', 'Verificado']);
+const COLUMNS = Object.freeze(['Artículo', 'Tipo de artículo', 'Departamento', 'Ubicación', 'Estado', 'Disponibilidad', 'Motivo / Observaciones', 'Verificado']);
 
 /** Filters survive navigation within the session (e.g. grid → article detail → back). */
 let filters = { ...EMPTY_FILTERS, check: DEFAULT_CHECK_STATUS, sort: DEFAULT_INVENTORY_SORT };
@@ -98,7 +98,7 @@ export async function render(container) {
   const selects = {
     check: select(CHECK_STATUS, { value: filters.check, 'aria-label': 'Verificación' }),
     locationId: select(catalogOptions(locationStore), { value: filters.locationId, placeholder: 'Todas las ubicaciones', 'aria-label': 'Ubicación' }),
-    typeId: select(catalogOptions(assetTypeStore), { value: filters.typeId, placeholder: 'Todas las categorías', 'aria-label': 'Categoría' }),
+    typeId: select(catalogOptions(assetTypeStore), { value: filters.typeId, placeholder: 'Todos los tipos', 'aria-label': 'Tipo de artículo' }),
     categoryId: select(catalogOptions(categoryStore), { value: filters.categoryId, placeholder: 'Todos los departamentos', 'aria-label': 'Departamento' }),
     condition: select(CONDITIONS, { value: filters.condition, placeholder: 'Todos los estados', 'aria-label': 'Estado' }),
     availability: select(AVAILABILITY, { value: filters.availability, placeholder: 'Toda disponibilidad', 'aria-label': 'Disponibilidad' }),
@@ -242,7 +242,7 @@ export async function render(container) {
         h('a', { href: `#/assets/${encodeURIComponent(asset.id)}`, class: 'row-link' }, asset.name),
         asset.code ? h('small', { class: 'muted block' }, asset.code) : null,
       ),
-      h('td', { dataset: { label: 'Categoría' } }, catalogLookups.typeName(asset.typeId)),
+      h('td', { dataset: { label: 'Tipo de artículo' } }, catalogLookups.typeName(asset.typeId)),
       h('td', { dataset: { label: 'Departamento' } }, catalogLookups.categoryName(asset.categoryId)),
       h('td', { dataset: { label: 'Ubicación' } }, controls.locationId),
       h('td', { dataset: { label: 'Estado' } }, controls.condition),

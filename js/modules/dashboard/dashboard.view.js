@@ -9,11 +9,11 @@ import { h, icon, mount, pageHeader } from '../../core/dom.js';
 import { session } from '../../core/session.js';
 import { NAV_ITEMS } from '../../config/navigation.js';
 import { assetStore } from '../assets/asset.store.js';
-import { CATALOG_STORES, catalogLookups, catalogsReady } from '../catalogs/catalog.store.js';
+import { CATALOG_STORES, categoryStore, catalogLookups, catalogsReady } from '../catalogs/catalog.store.js';
 import { watchPresence } from '../presence/presence.service.js';
 import { formatCurrency, formatNumber } from '../../shared/format.js';
 import { barList, kpi, segmentedBar } from '../../shared/charts.js';
-import { computeStats } from './dashboard.stats.js';
+import { articlesPerDepartment, computeStats } from './dashboard.stats.js';
 
 /** @param {Array<{ displayName: string }> | null | undefined} users undefined = still loading, null = cannot be read */
 function connectedKpi(users) {
@@ -79,10 +79,10 @@ function draw(container, connected) {
             'p',
             null,
             canWrite
-              ? 'Primero cree las categorías, departamentos y ubicaciones; luego registre el primer artículo.'
+              ? 'Primero cree los tipos de artículo, departamentos y ubicaciones; luego registre el primer artículo.'
               : 'Cuando se registren artículos, aquí verá el resumen.',
           ),
-          canWrite ? h('a', { href: '#/catalogs', class: 'btn btn-secondary' }, 'Ir a catálogos') : null,
+          canWrite ? h('a', { href: '#/records', class: 'btn btn-secondary' }, 'Ir a registros') : null,
         )
       : [
           h(
@@ -91,12 +91,12 @@ function draw(container, connected) {
             segmentedBar('Estado de los artículos (unidades)', stats.byCondition, 'condition'),
             segmentedBar('Disponibilidad (unidades)', stats.byAvailability, 'availability'),
           ),
+          barList('Artículos por departamento', articlesPerDepartment(assetStore.getAll(), categoryStore.getAll())),
           h(
             'div',
-            { class: 'grid-3' },
-            barList('Por categoría', stats.byType),
-            barList('Por departamento', stats.byCategory),
-            barList('Por ubicación', stats.byLocation),
+            { class: 'grid-2' },
+            barList('Por tipo de artículo (unidades)', stats.byType),
+            barList('Por ubicación (unidades)', stats.byLocation),
           ),
         ],
     shortcuts(),

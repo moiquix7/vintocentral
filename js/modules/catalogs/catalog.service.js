@@ -1,5 +1,5 @@
 /**
- * Generic CRUD for small catalogs: asset types (UI "Categorías"), categories (UI "Departamentos") and
+ * Generic CRUD for small catalogs: asset types (UI "Tipos de artículo"), categories (UI "Departamentos") and
  * locations. One factory, three instances: same behaviour, different collection.
  */
 import {
@@ -40,6 +40,9 @@ function createCatalogService({ collectionName, usageField, store, withLeader = 
   }
 
   return Object.freeze({
+    /** Asset field that references this catalog (also used to count how many articles use each record). */
+    usageField,
+
     async create(input) {
       const data = prepare(input, null);
       try {

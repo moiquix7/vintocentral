@@ -25,6 +25,7 @@ import { session } from '../../core/session.js';
 import { AppError, ValidationError, toAppError } from '../../core/errors.js';
 import { COLLECTIONS } from '../../config/app-config.js';
 import { sanitizeNewUser, validateNewUser, validateProfileChange } from './user.model.js';
+import { cleanText } from '../../shared/validation.js';
 
 export async function listUsers() {
   try {
@@ -63,6 +64,7 @@ export async function createUser(input) {
       username: user.username,
       displayName: user.displayName,
       role: user.role,
+      departmentId: user.departmentId,
       active: true,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -75,14 +77,19 @@ export async function createUser(input) {
   }
 }
 
-/** Changes role and/or active flag. */
-export async function updateUserAccess(targetUid, { role, active }) {
+/**
+ * Changes role, active flag and department (id from `categories`, '' = none).
+ * @param {string} targetUid
+ * @param {{ role: string, active: boolean, departmentId: string }} access
+ */
+export async function updateUserAccess(targetUid, { role, active, departmentId }) {
   const problem = validateProfileChange({ targetUid, currentUid: session.user.uid, role, active });
   if (problem) throw new AppError(problem, { code: 'app/self-lockout' });
   try {
     await updateDoc(doc(db, COLLECTIONS.users, targetUid), {
       role,
       active,
+      departmentId: cleanText(departmentId, 64),
       updatedAt: serverTimestamp(),
       updatedBy: session.user.uid,
     });

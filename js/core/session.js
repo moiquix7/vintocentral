@@ -121,6 +121,7 @@ function watchProfile(user, onSettled) {
         role: data.role,
         photoUrl: typeof data.photoUrl === 'string' ? data.photoUrl : '',
         photoPath: typeof data.photoPath === 'string' ? data.photoPath : '',
+        departmentId: typeof data.departmentId === 'string' ? data.departmentId : '',
       });
       onSettled();
     },

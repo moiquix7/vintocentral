@@ -10,6 +10,8 @@ import {
   validateInventoryUpdate,
   ASSET_FIELDS,
   INVENTORY_FIELDS,
+  findDuplicateAsset,
+  findSimilarAssets,
 } from '../js/modules/assets/asset.model.js';
 
 const valid = {
@@ -116,4 +118,38 @@ test('the unavailable reason is kept only while the article is not available; no
   assert.equal(sanitizeAsset({ ...valid, notes: 'a'.repeat(900) }).notes.length, 500);
   assert.equal(sanitizeAsset({ ...valid, availability: 'missing', unavailableReason: 'b'.repeat(900) }).unavailableReason.length, 200);
   assert.equal(sanitizeAsset({ ...valid, notes: 42 }).notes, '');
+});
+
+test('new fields: brand, model and serial are trimmed and limited; switches are strict booleans', () => {
+  const clean = sanitizeAsset({ ...valid, brand: ' Yamaha ', model: 'M'.repeat(99), serialNumber: ' SN-1 ', builtIn: true, insured: 'true' });
+  assert.equal(clean.brand, 'Yamaha');
+  assert.equal(clean.model.length, 60);
+  assert.equal(clean.serialNumber, 'SN-1');
+  assert.equal(clean.builtIn, true);
+  assert.equal(clean.insured, false, 'only a real true counts (no excess data)');
+  const old = sanitizeAsset(valid);
+  assert.equal(old.builtIn, false);
+  assert.equal(old.brand, '');
+});
+
+const existing = [
+  { id: 'a1', name: 'Silla plástica', locationId: 'templo' },
+  { id: 'a2', name: 'Silla de madera', locationId: 'salon' },
+  { id: 'a3', name: 'Mesa plegable', locationId: 'templo' },
+];
+
+test('findDuplicateAsset: same name (no case/accents/extra spaces) in the same location', () => {
+  assert.equal(findDuplicateAsset(existing, { name: '  SILLA   plastica ', locationId: 'templo' })?.id, 'a1');
+  assert.equal(findDuplicateAsset(existing, { name: 'Silla plástica', locationId: 'salon' }), null, 'other location is allowed');
+  assert.equal(findDuplicateAsset(existing, { name: 'Silla plástica', locationId: 'templo' }, 'a1'), null, 'editing itself is not a duplicate');
+  assert.equal(findDuplicateAsset(existing, { name: '', locationId: 'templo' }), null);
+});
+
+test('findSimilarAssets: every typed word, exact match first, limited, needs 2+ characters', () => {
+  assert.deepEqual(findSimilarAssets(existing, 'silla').map((a) => a.id), ['a2', 'a1']);
+  assert.deepEqual(findSimilarAssets([...existing, { id: 'a4', name: 'Silla', locationId: 'x' }], 'SILLA').map((a) => a.id)[0], 'a4');
+  assert.deepEqual(findSimilarAssets(existing, 'plas sil').map((a) => a.id), ['a1']);
+  assert.deepEqual(findSimilarAssets(existing, 's'), []);
+  assert.equal(findSimilarAssets(existing, 'silla', { limit: 1 }).length, 1);
+  assert.deepEqual(findSimilarAssets(existing, 'silla', { excludeId: 'a1' }).map((a) => a.id), ['a2']);
 });

@@ -1,4 +1,7 @@
-/** Asset list with search, filters, sorting and incremental paging. */
+/**
+ * Asset list with search, filters, sorting and incremental paging.
+ * Last column "Acciones": Editar (assets.write) and Eliminar (assets.delete, admin only); hidden for viewers.
+ */
 import { h, icon, mount, pageHeader } from '../../core/dom.js';
 import { session } from '../../core/session.js';
 import { AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
@@ -7,14 +10,35 @@ import { select } from '../../shared/form.js';
 import { assetStore } from './asset.store.js';
 import { CATALOG_STORES, assetTypeStore, categoryStore, locationStore, catalogLookups, catalogOptions, catalogsReady } from '../catalogs/catalog.store.js';
 import { EMPTY_FILTERS, SORT_OPTIONS, filterAssets, sortAssets } from './asset-filter.js';
-import { availabilityBadge, conditionBadge, thumbnail } from './asset-ui.js';
+import { availabilityBadge, conditionBadge, confirmDeleteAsset, thumbnail } from './asset-ui.js';
 
 const PAGE_SIZE = 50;
 
 /** Filters survive navigation within the session (e.g. list → detail → back). */
 let filters = { ...EMPTY_FILTERS };
 
-function row(asset) {
+/** Editar / Eliminar buttons for one article, or null when the role can do neither. */
+function actionsCell(asset, { canEdit, canDelete }) {
+  if (!canEdit && !canDelete) return null;
+  const remove = canDelete
+    ? h('button', { type: 'button', class: 'btn btn-danger btn-small', 'aria-label': `Eliminar ${asset.name}` }, icon('trash'), 'Eliminar')
+    : null;
+  remove?.addEventListener('click', () => confirmDeleteAsset(asset, remove));
+  return h(
+    'td',
+    { class: 'col-actions', dataset: { label: 'Acciones' } },
+    h(
+      'div',
+      { class: 'button-row' },
+      canEdit
+        ? h('a', { href: `#/assets/${encodeURIComponent(asset.id)}/edit`, class: 'btn btn-secondary btn-small', 'aria-label': `Editar ${asset.name}` }, icon('edit'), 'Editar')
+        : null,
+      remove,
+    ),
+  );
+}
+
+function row(asset, permissions) {
   return h(
     'tr',
     null,
@@ -25,28 +49,32 @@ function row(asset) {
       h('a', { href: `#/assets/${encodeURIComponent(asset.id)}`, class: 'row-link' }, asset.name),
       asset.code ? h('small', { class: 'muted block' }, asset.code) : null,
     ),
-    h('td', { dataset: { label: 'Categoría' } }, catalogLookups.typeName(asset.typeId)),
+    h('td', { dataset: { label: 'Tipo de artículo' } }, catalogLookups.typeName(asset.typeId)),
     h('td', { class: 'secondary', dataset: { label: 'Departamento' } }, catalogLookups.categoryName(asset.categoryId)),
     h('td', { dataset: { label: 'Ubicación' } }, catalogLookups.locationName(asset.locationId)),
-    h('td', { dataset: { label: 'Estado' } }, conditionBadge(asset.condition), ' ', availabilityBadge(asset)),
+    h('td', { dataset: { label: 'Estado' } }, conditionBadge(asset.condition)),
+    h('td', { dataset: { label: 'Disponibilidad' } }, availabilityBadge(asset)),
     h('td', { class: 'num', dataset: { label: 'Cantidad' } }, formatNumber(asset.quantity)),
     h('td', { class: 'num secondary', dataset: { label: 'Valor unitario' } }, formatCurrency(asset.value)),
+    actionsCell(asset, permissions),
   );
 }
 
 export async function render(container) {
   await Promise.all([assetStore.whenReady(), catalogsReady()]);
   let visible = PAGE_SIZE;
+  const permissions = { canEdit: session.can('assets.write'), canDelete: session.can('assets.delete') };
+  const showActions = permissions.canEdit || permissions.canDelete;
 
   const search = h('input', {
     type: 'search',
     class: 'search-input',
-    placeholder: 'Buscar por nombre, código, etiqueta…',
+    placeholder: 'Buscar por nombre, código, marca, serie, etiqueta…',
     'aria-label': 'Buscar artículos',
     maxlength: 80,
     value: filters.text,
   });
-  const type = select(catalogOptions(assetTypeStore), { value: filters.typeId, placeholder: 'Todas las categorías', 'aria-label': 'Categoría' });
+  const type = select(catalogOptions(assetTypeStore), { value: filters.typeId, placeholder: 'Todos los tipos', 'aria-label': 'Tipo de artículo' });
   const category = select(catalogOptions(categoryStore), { value: filters.categoryId, placeholder: 'Todos los departamentos', 'aria-label': 'Departamento' });
   const locationSelect = select(catalogOptions(locationStore), { value: filters.locationId, placeholder: 'Todas las ubicaciones', 'aria-label': 'Ubicación' });
   const condition = select(CONDITIONS, { value: filters.condition, placeholder: 'Todos los estados', 'aria-label': 'Estado' });
@@ -82,15 +110,17 @@ export async function render(container) {
             null,
             h('th', { scope: 'col', class: 'col-thumb secondary' }, h('span', { class: 'visually-hidden' }, 'Foto')),
             h('th', { scope: 'col' }, 'Nombre'),
-            h('th', { scope: 'col' }, 'Categoría'),
+            h('th', { scope: 'col' }, 'Tipo de artículo'),
             h('th', { scope: 'col', class: 'secondary' }, 'Departamento'),
             h('th', { scope: 'col' }, 'Ubicación'),
             h('th', { scope: 'col' }, 'Estado'),
+            h('th', { scope: 'col' }, 'Disponibilidad'),
             h('th', { scope: 'col', class: 'num' }, 'Cant.'),
             h('th', { scope: 'col', class: 'num secondary' }, 'Valor unit.'),
+            showActions ? h('th', { scope: 'col', class: 'col-actions' }, 'Acciones') : null,
           ),
         ),
-        h('tbody', null, matches.slice(0, visible).map(row)),
+        h('tbody', null, matches.slice(0, visible).map((asset) => row(asset, permissions))),
       ),
       more,
     );

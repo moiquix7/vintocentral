@@ -26,6 +26,28 @@ function unitsPerOption(assets, options, valueOf) {
   }));
 }
 
+/**
+ * Every department (also those with 0 articles) with the number of articles registered in it.
+ * Largest first, then A → Z. "Sin departamento" is added only when some article has none
+ * (or points to a department that no longer exists).
+ * @param {Array<object>} assets
+ * @param {Array<{ id: string, name: string }>} departments
+ * @returns {Array<{ key: string, label: string, units: number }>} `units` = number of articles
+ */
+export function articlesPerDepartment(assets, departments) {
+  const counts = new Map(departments.map((department) => [department.id, 0]));
+  let orphans = 0;
+  for (const asset of assets) {
+    if (counts.has(asset.categoryId)) counts.set(asset.categoryId, counts.get(asset.categoryId) + 1);
+    else orphans += 1;
+  }
+  const rows = departments
+    .map((department) => ({ key: department.id, label: department.name, units: counts.get(department.id) }))
+    .sort((a, b) => b.units - a.units || a.label.localeCompare(b.label));
+  if (orphans) rows.push({ key: '', label: 'Sin departamento', units: orphans });
+  return rows;
+}
+
 /** An article needs attention when it is in bad condition, under repair or missing. */
 export function needsAttention(asset) {
   return ATTENTION_CONDITIONS.includes(asset.condition) || ATTENTION_AVAILABILITY.includes(availabilityOf(asset));

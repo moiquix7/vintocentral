@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EMPTY_FILTERS, filterAssets, sortAssets } from '../js/modules/assets/asset-filter.js';
 
 const lookups = {
-  typeName: (id) => ({ t1: 'Mobiliario', t2: 'Equipo de sonido' })[id] ?? 'Sin categoría',
+  typeName: (id) => ({ t1: 'Mobiliario', t2: 'Equipo de sonido' })[id] ?? 'Sin tipo',
   categoryName: (id) => ({ c1: 'Escuela Sabática', c2: 'Música' })[id] ?? 'Sin departamento',
   locationName: (id) => ({ l1: 'Templo', l2: 'Salón de jóvenes' })[id] ?? 'Sin ubicación',
 };

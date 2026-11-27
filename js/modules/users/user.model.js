@@ -39,6 +39,7 @@ export function sanitizeNewUser(input = {}) {
     username: normalizeUsername(input.username),
     email: cleanText(input.email, L.email).toLowerCase(),
     role: cleanText(input.role, 10),
+    departmentId: cleanText(input.departmentId, 64),
     password: cleanPassword(input.password),
   };
 }
