@@ -66,10 +66,15 @@ HTML, JavaScript,css, firebase, firebase authentication, firebase firestore, fir
 - Administrators and Editors will be able to see a history of the changes made to the assets, including who made the changes and when. use as a reference for auditing and accountability purposes. the design of the history will be simple and easy to understand, with clear labels and timestamps for each change, in a chronological order. 
 
 
+
 ### LOGIN PAGE
 - The login page will allow users to sign in with their username and password, and will enforce role-based access control to ensure that users only have access to the features and data that they are authorized to view.
 - when user is logged in, the system will redirect to the dashboard page, where they can view key indicators on the inventory status and access the different features of the application based on their role and permissions.
 - Let user know that must contact to the administrator to create an account if they don't have one, and provide a link to the password reset page if they forget their password. (Display name of the secretary "Luz Andrea Guachalla" of the church who is the administrator of the system, and provide a link to contact them via email or phone.)
+
+### HOME PAGE
+- The home page will provide an overview of the inventory status, including key indicators such as total assets, assets by category, and assets by location. 
+- DISPLAY in a chronological graph order (eye-friendly) the last 10 assets that have been added or updated, with links to view their details and edit them (if the user has the appropriate permissions). 
 
 ### DASHBOARD PAGE
 - the dashboard page is available just to administrators and editors, and will provide key indicators on the inventory status, such as total assets, assets by category, assets by department and assets by location, also will show the number of users active/connected to the system, and the number of assets that need attention (e.g., assets that are in poor condition or need maintenance).
@@ -80,6 +85,8 @@ HTML, JavaScript,css, firebase, firebase authentication, firebase firestore, fir
 - Users will be able to update the status of each asset by selecting the appropriate values from dropdown menus or checkboxes, and the system will automatically save the changes to the database.
 - The page will also provide a progress indicator to show the number of assets that have been verified and updated, and will allow users to filter and sort the assets by category, department, location, condition, and availability
 - also allow users let know the reason why the assets is not available, and provide a field to enter comments or notes about the asset's status.
+
+
   
 ## THERMINOLOGY AND GLOSSARY
 - "Articulo": any fixed asset of the church, such as furniture, equipment, vehicles, etc.  

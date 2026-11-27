@@ -31,11 +31,6 @@ export function needsAttention(asset) {
   return ATTENTION_CONDITIONS.includes(asset.condition) || ATTENTION_AVAILABILITY.includes(availabilityOf(asset));
 }
 
-/** Share of `part` in `total`, as a whole percent (0 when total is 0). */
-export function percentOf(part, total) {
-  return total > 0 ? Math.round((part / total) * 100) : 0;
-}
-
 function quantityOf(asset) {
   return Number.isInteger(asset.quantity) && asset.quantity > 0 ? asset.quantity : 1;
 }

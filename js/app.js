@@ -9,12 +9,14 @@ import { CATALOG_STORES } from './modules/catalogs/catalog.store.js';
 import { ensureShell, destroyShell, setActiveNav, shellKey } from './modules/layout/shell.js';
 import { startPresence, stopPresence } from './modules/presence/presence.service.js';
 
+const HOME_PAGE_PATH = '/home';
 const DASHBOARD_PATH = '/dashboard';
 const ASSETS_PATH = '/assets';
 
 const ROUTES = Object.freeze([
   { path: LOGIN_PATH, title: 'Ingresar', public: true, view: () => import('./modules/auth/login.view.js') },
-  { path: DASHBOARD_PATH, title: 'Inicio', permission: 'dashboard.view', view: () => import('./modules/dashboard/dashboard.view.js') },
+  { path: HOME_PAGE_PATH, title: 'Inicio', permission: 'assets.read', view: () => import('./modules/home/home.view.js') },
+  { path: DASHBOARD_PATH, title: 'Tablero', permission: 'dashboard.view', view: () => import('./modules/dashboard/dashboard.view.js') },
   { path: ASSETS_PATH, title: 'Artículos', permission: 'assets.read', view: () => import('./modules/assets/asset-list.view.js') },
   { path: '/assets/new', title: 'Registrar artículo', permission: 'assets.write', view: () => import('./modules/assets/asset-form.view.js') },
   { path: '/assets/:id', title: 'Detalle del artículo', permission: 'assets.read', view: () => import('./modules/assets/asset-detail.view.js') },
@@ -29,10 +31,10 @@ const ROUTES = Object.freeze([
 
 const STORES = [assetStore, ...CATALOG_STORES];
 
-/** Home page by role: the dashboard (admin, editor) or the article list (viewer). */
+/** Landing page by role: the dashboard (admin, editor) or the home page (viewer). */
 function homePath() {
   if (!session.isAuthenticated) return LOGIN_PATH;
-  return session.can('dashboard.view') ? DASHBOARD_PATH : ASSETS_PATH;
+  return session.can('dashboard.view') ? DASHBOARD_PATH : HOME_PAGE_PATH;
 }
 
 function startUserServices() {

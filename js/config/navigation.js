@@ -3,7 +3,8 @@
  * `permission` must be one of PERMISSIONS_BY_ROLE (app-config.js); `icon` a name from core/dom.js.
  */
 export const NAV_ITEMS = Object.freeze([
-  { path: '/dashboard', label: 'Inicio', icon: 'home', permission: 'dashboard.view', hint: 'Indicadores del inventario' },
+  { path: '/home', label: 'Inicio', icon: 'home', permission: 'assets.read', hint: 'Resumen y últimos movimientos' },
+  { path: '/dashboard', label: 'Tablero', icon: 'chart', permission: 'dashboard.view', hint: 'Indicadores y gráficos del inventario' },
   { path: '/assets', label: 'Artículos', icon: 'box', permission: 'assets.read', hint: 'Buscar, filtrar y ordenar artículos' },
   { path: '/inventory', label: 'Toma de inventario', icon: 'check', permission: 'assets.write', hint: 'Verificar artículos en una tabla' },
   { path: '/catalogs', label: 'Catálogos', icon: 'tag', permission: 'catalogs.write', hint: 'Categorías, departamentos y ubicaciones' },

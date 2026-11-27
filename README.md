@@ -18,7 +18,9 @@ Storage. No build step.
 - User menu: **Mi perfil** (name, username, photo, password), light/dark theme, five soft color
   palettes, focus mode, text size.
 - Up to 4 photos per asset: from the gallery or the device **camera**; compressed before upload.
-- Dashboard (admin and editor): total articles, units, estimated value, articles needing attention,
+- Home page (*Inicio*, every role): totals, articles by category and by location, and a chronological
+  timeline of the last 10 articles added or updated, with links to view or edit them.
+- Dashboard (*Tablero*, admin and editor): total articles, units, estimated value, articles needing attention,
   **users connected now**, charts by condition, availability, category, department and location, and
   shortcuts to each section.
 - PDF inventory report with filters and summary.
@@ -57,7 +59,7 @@ js/app.js                   routes and session → data wiring
 js/config/                  app constants, roles, limits, Firebase web config
 js/core/                    firebase SDK, router, session, errors, notifications, stores, DOM helper
 js/shared/                  forms, dialogs, camera, image compression, formatting
-js/modules/<feature>/       auth, layout, dashboard, presence, history, assets, inventory, catalogs, reports, users
+js/modules/<feature>/       auth, layout, home, dashboard, presence, history, assets, inventory, catalogs, reports, users
 firestore.rules, storage.rules, firebase.json, .firebaserc
 .github/workflows/deploy-pages.yml
 tests/                      node --test

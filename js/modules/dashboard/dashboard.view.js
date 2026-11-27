@@ -1,5 +1,5 @@
 /**
- * Dashboard (admin and editor only): key indicators, connected users, charts by condition,
+ * Dashboard "Tablero" (admin and editor only): key indicators, connected users, charts by condition,
  * availability, category, department and location, and shortcuts to the sections the role may use.
  *
  * Charts follow the eye-friendly rules: one soft color per bar list, segmented bars with a legend that
@@ -12,89 +12,8 @@ import { assetStore } from '../assets/asset.store.js';
 import { CATALOG_STORES, catalogLookups, catalogsReady } from '../catalogs/catalog.store.js';
 import { watchPresence } from '../presence/presence.service.js';
 import { formatCurrency, formatNumber } from '../../shared/format.js';
-import { computeStats, percentOf } from './dashboard.stats.js';
-
-function kpi(label, value, { tone = '', iconName = '', detail = null } = {}) {
-  return h(
-    'div',
-    { class: `kpi${tone ? ` kpi--${tone}` : ''}` },
-    h('p', { class: 'kpi-label' }, iconName ? icon(iconName) : null, label),
-    h('p', { class: 'kpi-value' }, value),
-    detail,
-  );
-}
-
-function shareText(units, total) {
-  return `${formatNumber(units)} unidades · ${percentOf(units, total)} %`;
-}
-
-/** Horizontal bar list (accessible: the numbers are text, bars are decorative with a tooltip). */
-function barList(title, rows) {
-  const max = Math.max(1, ...rows.map((r) => r.units));
-  const total = rows.reduce((sum, r) => sum + r.units, 0);
-  return h(
-    'section',
-    { class: 'card' },
-    h('h2', null, title),
-    rows.length === 0
-      ? h('p', { class: 'muted' }, 'Sin datos todavía.')
-      : h(
-          'ul',
-          { class: 'bars' },
-          rows.map((row) =>
-            h(
-              'li',
-              { title: `${row.label}: ${shareText(row.units, total)}` },
-              h('span', { class: 'bar-label' }, row.label),
-              h('span', { class: 'bar-track', 'aria-hidden': 'true' }, h('span', { class: 'bar-fill', style: `width:${(row.units / max) * 100}%` })),
-              h('span', { class: 'bar-value' }, formatNumber(row.units), h('small', { class: 'muted' }, ` ${percentOf(row.units, total)} %`)),
-            ),
-          ),
-        ),
-  );
-}
-
-/**
- * 100 % segmented bar for a fixed, ordered list (condition, availability). Empty values are left out;
- * the legend lists every shown value with its number and percent.
- */
-function segmentedBar(title, rows, kind) {
-  const shown = rows.filter((row) => row.units > 0);
-  const total = shown.reduce((sum, row) => sum + row.units, 0);
-  return h(
-    'section',
-    { class: 'card' },
-    h('h2', null, title),
-    total === 0
-      ? h('p', { class: 'muted' }, 'Sin datos todavía.')
-      : [
-          h(
-            'div',
-            { class: 'stackbar', 'aria-hidden': 'true' },
-            shown.map((row) =>
-              h('span', {
-                class: `stackbar-seg seg--${kind}-${row.key}`,
-                style: `flex-grow:${row.units}`,
-                title: `${row.label}: ${shareText(row.units, total)}`,
-              }),
-            ),
-          ),
-          h(
-            'ul',
-            { class: 'legend' },
-            shown.map((row) =>
-              h(
-                'li',
-                { title: `${row.label}: ${shareText(row.units, total)}` },
-                h('span', { class: `legend-swatch seg--${kind}-${row.key}`, 'aria-hidden': 'true' }),
-                h('span', { class: 'legend-label' }, row.label),
-                h('span', { class: 'legend-value' }, formatNumber(row.units), h('small', { class: 'muted' }, ` ${percentOf(row.units, total)} %`)),
-              ),
-            ),
-          ),
-        ],
-  );
-}
+import { barList, kpi, segmentedBar } from '../../shared/charts.js';
+import { computeStats } from './dashboard.stats.js';
 
 /** @param {Array<{ displayName: string }> | null | undefined} users undefined = still loading, null = cannot be read */
 function connectedKpi(users) {
@@ -109,7 +28,7 @@ function connectedKpi(users) {
 
 /** Shortcuts to the other sections this role may open (same list as the navigation). */
 function shortcuts() {
-  const items = NAV_ITEMS.filter((item) => item.path !== '/dashboard' && session.can(item.permission));
+  const items = NAV_ITEMS.filter((item) => !['/dashboard', '/home'].includes(item.path) && session.can(item.permission));
   return h(
     'section',
     { class: 'card', 'aria-labelledby': 'shortcuts-title' },
@@ -134,7 +53,7 @@ function draw(container, connected) {
   mount(
     container,
     pageHeader(
-      `Hola, ${session.profile.displayName}`,
+      'Tablero',
       canWrite ? h('a', { href: '#/inventory', class: 'btn btn-secondary' }, icon('check'), 'Toma de inventario') : null,
       canWrite ? h('a', { href: '#/assets/new', class: 'btn btn-primary' }, icon('plus'), 'Registrar artículo') : null,
     ),

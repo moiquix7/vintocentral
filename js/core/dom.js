@@ -67,6 +67,7 @@ const ICON_PATHS = Object.freeze({
   moon: 'M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z',
   mail: 'M3 5h18v14H3zM3 6l9 7 9-7',
   clock: 'M12 21a9 9 0 100-18 9 9 0 000 18zM12 7v5l3 2',
+  chart: 'M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3',
   phone: 'M5 3h4l2 5-3 2a12 12 0 006 6l2-3 5 2v4a2 2 0 01-2 2A18 18 0 013 5a2 2 0 012-2z',
   chat: 'M21 12a8 8 0 01-11.6 7.1L4 21l1.9-5.4A8 8 0 1121 12z',
   alert: 'M12 3l10 18H2zM12 10v4M12 17h.01',

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeStats, percentOf } from '../js/modules/dashboard/dashboard.stats.js';
+import { computeStats } from '../js/modules/dashboard/dashboard.stats.js';
+import { percentOf } from '../js/shared/format.js';
 import {
   sanitizeCatalogItem,
   validateCatalogItem,

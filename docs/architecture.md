@@ -21,7 +21,7 @@ index.html ─► js/main.js ─► js/app.js
 |-------|----------------|------------|
 | `config/` | Constants: roles, permissions, asset conditions, limits, Firebase web config. Pure data. | nothing |
 | `core/` | Infrastructure: Firebase SDK (single place that knows the CDN version), router, session, errors, notifications, DOM helper, preferences, collection stores. | `config/` |
-| `shared/` | Reusable UI/browser helpers with no domain knowledge: dialogs, camera, image compression, formatting, script loader. | `core/`, `config/` |
+| `shared/` | Reusable UI/browser helpers with no domain knowledge: dialogs, camera, image compression, formatting, script loader, charts (KPI tile, bar list, segmented bar). | `core/`, `config/` |
 | `modules/<feature>/` | One feature each: `*.model.js` (pure validation/sanitising), `*.service.js` (Firebase access), `*.store.js` (live data), `*.view.js` (DOM). | `core/`, `shared/`, `config/`, and another module's **service/store/model** only (never another module's view). |
 
 Rules that keep **high cohesion / low coupling**:
@@ -42,7 +42,8 @@ Rules that keep **high cohesion / low coupling**:
 |--------|----------|------------|
 | `auth` | `#/login` (username **or** email + password) | public |
 | `profile` | `#/profile` (name, username, photo, password) | any signed-in user |
-| `dashboard` | `#/dashboard` (admin and editor only) | `dashboard.view` |
+| `home` | `#/home` "Inicio" — overview for every role | `assets.read` |
+| `dashboard` | `#/dashboard` "Tablero" (admin and editor only) | `dashboard.view` |
 | `presence` | no route — heartbeat of connected users, read by the dashboard | any signed-in user writes its own |
 | `history` | `#/history` "Historial" (recent changes of all articles) + a section in the article detail | `history.view` (admin, editor) |
 | `assets` | `#/assets`, `#/assets/new`, `#/assets/:id`, `#/assets/:id/edit` | read / `assets.write` |
@@ -56,9 +57,23 @@ Interface wording follows the CLAUDE.md terminology: **Artículo** (never "bien"
 **Departamento**, **Ubicación**, **Etiqueta**, **Usuario**. The mapping to collections and fields is
 in `docs/data-model.md`.
 
-## Dashboard (`#/dashboard`)
+## Home (`#/home`, "Inicio")
 
-Only **admin** and **editor** (`dashboard.view`). A viewer's home page is `#/assets`.
+For every signed-in user (viewers land here after sign-in; the logo also leads here).
+
+- Indicators: articles registered, units, and bar lists by Categoría and by Ubicación.
+- **Últimos movimientos**: the last 10 articles added or updated, drawn as a vertical timeline in
+  **chronological order** (oldest of the ten first, the most recent at the bottom, marked "Lo más
+  reciente"). Each point: date and time, what happened (*Registrado*, *Modificado* or *Verificado
+  en la toma de inventario*, deduced from `createdAt` / `checkedAt` / `updatedAt`), the article's
+  category and location, and links **Ver** and **Editar** (Editar only with `assets.write`).
+- Built from the in-memory asset store (no extra reads, works for viewers, who cannot read the
+  change history). Pure logic in `home.model.js` (tested); totals reuse `dashboard.stats.js`, and the
+  KPI tile and bar lists come from `shared/charts.js` (also used by the Tablero).
+
+## Dashboard (`#/dashboard`, "Tablero")
+
+Only **admin** and **editor** (`dashboard.view`); it is their landing page after sign-in.
 
 - KPIs: articles, units, estimated value, **needs attention** (condition *Malo* / *Fuera de
   servicio*, or availability *En reparación* / *Extraviado*) and **users connected now**.
@@ -128,7 +143,7 @@ Hash routing (`#/path`) is used so the app works on **GitHub Pages** (which cann
 Firebase Hosting alike.
 
 - Unknown route → redirect to `#/login` (project rule). The login page forwards an already
-  signed-in user to their **home**: `#/dashboard` for admin/editor, `#/assets` for viewer
+  signed-in user to their **home**: `#/dashboard` for admin/editor, `#/home` for viewer
   (`homePath()` in `app.js`, given to the router).
 - Route without session → `#/login`.
 - Route without permission → home with a message.
@@ -140,7 +155,7 @@ Firebase Hosting alike.
 |------|--------|
 | `admin` | Everything, including deleting assets and managing users. |
 | `editor` | Dashboard, register and update assets, inventory-taking, catalogs, reports, change history. |
-| `viewer` | View assets and reports (no dashboard). |
+| `viewer` | Home page, view assets and reports (no dashboard, no history). |
 
 The role lives in `users/{uid}` (Firestore). The UI hides what a role cannot do, and the **security
 rules enforce it** (`firestore.rules`, `storage.rules`) — the UI is never the only barrier.

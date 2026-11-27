@@ -405,3 +405,12 @@ input:hover, select:hover, textarea:hover { border-color: var(--muted); }
 .badge--action-check { background: var(--surface-alt); color: var(--label); border: 1px solid var(--border); }
 .badge--action-delete { background: var(--danger-soft); color: var(--danger); }
 :root[data-focus-mode="on"] .timeline { gap: var(--space-4); }
+
+/* Home: latest activity timeline (reuses .timeline) */
+.timeline-meta { margin: 0; font-size: 0.95rem; }
+.timeline-actions { margin-top: var(--space-2); }
+.timeline-item--latest::before { background: var(--accent); }
+.badge--activity-created { background: var(--success-soft); color: var(--success); }
+.badge--activity-updated { background: var(--info-soft); color: var(--primary); }
+.badge--activity-checked { background: var(--surface-alt); color: var(--label); border: 1px solid var(--border); }
+.badge--latest { background: var(--primary); color: var(--on-primary); }

@@ -134,7 +134,7 @@ function build(root) {
       { class: 'app-header' },
       h(
         'a',
-        { class: 'brand', href: session.can('dashboard.view') ? '#/dashboard' : '#/assets' },
+        { class: 'brand', href: '#/home' },
         h('img', { src: APP.logo, alt: '', width: '36', height: '36', class: 'brand-logo' }),
         h('span', { class: 'brand-name' }, APP.name),
       ),
