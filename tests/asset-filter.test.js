@@ -46,3 +46,13 @@ test('sorting by name and value, without mutating input', () => {
 test('unknown sort key falls back to name ascending', () => {
   assert.deepEqual(sortAssets(assets, 'hack:asc').map((a) => a.id), ['3', '2', '1']);
 });
+
+test('sorting by catalog names, condition and availability; ties by name', () => {
+  const ids = (key) => sortAssets(assets, key, lookups).map((a) => a.id);
+  assert.deepEqual(ids('location:asc'), ['3', '2', '1']); // Salón de jóvenes (Banca, Micrófono), Templo
+  assert.deepEqual(ids('type:asc'), ['2', '3', '1']); // Equipo de sonido, Mobiliario (Banca, Silla)
+  assert.deepEqual(ids('category:asc'), ['3', '1', '2']); // Escuela Sabática (Banca, Silla), Música
+  assert.deepEqual(ids('condition:asc'), ['1', '3', '2']); // good, fair, poor
+  assert.deepEqual(ids('condition:desc'), ['2', '3', '1']);
+  assert.deepEqual(ids('availability:asc'), ['1', '3', '2']); // available (missing field), in_use, loaned
+});

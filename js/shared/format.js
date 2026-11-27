@@ -46,3 +46,8 @@ export function todayIso() {
   const pad = (n) => String(n).padStart(2, '0');
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
+
+/** Share of `part` in `total`, as a whole percent (0 when total is 0). */
+export function percentOf(part, total) {
+  return total > 0 ? Math.round((part / total) * 100) : 0;
+}

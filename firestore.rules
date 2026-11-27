@@ -102,11 +102,12 @@ service cloud.firestore {
     }
 
     // ---------- Assets ("Artículos") ----------
-    // typeId ("Categoría"), availability and checkedAt are optional: articles registered before they
-    // existed must still be editable. The app always writes typeId and availability.
+    // typeId ("Categoría"), availability, unavailableReason, notes and checkedAt are optional: articles
+    // registered before they existed must still be editable. The app always writes typeId and availability.
     function validAsset(data) {
       return data.keys().hasOnly(['code', 'name', 'description', 'typeId', 'categoryId', 'locationId', 'condition',
-                                  'availability', 'tags', 'acquisitionDate', 'value', 'quantity', 'photos', 'checkedAt',
+                                  'availability', 'unavailableReason', 'notes',
+                                  'tags', 'acquisitionDate', 'value', 'quantity', 'photos', 'checkedAt',
                                   'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
         && data.keys().hasAll(['code', 'name', 'description', 'categoryId', 'locationId', 'condition',
                                'tags', 'acquisitionDate', 'value', 'quantity', 'photos',
@@ -119,6 +120,8 @@ service cloud.firestore {
         && isText(data.locationId, 1, 64)
         && data.condition in ['new', 'good', 'fair', 'poor', 'out_of_service']
         && (!('availability' in data) || data.availability in ['available', 'in_use', 'loaned', 'in_repair', 'missing'])
+        && (!('unavailableReason' in data) || isText(data.unavailableReason, 0, 200))
+        && (!('notes' in data) || isText(data.notes, 0, 500))
         && (!('checkedAt' in data) || data.checkedAt is timestamp)
         && data.tags is list && data.tags.size() <= 10
         && isText(data.acquisitionDate, 0, 10)
@@ -141,6 +144,34 @@ service cloud.firestore {
         && (request.resource.data.get('checkedAt', null) == resource.data.get('checkedAt', null)
             || request.resource.data.get('checkedAt', null) == request.time);
       allow delete: if isAdmin();
+    }
+
+    // ---------- Change history of articles ("Historial") ----------
+    // Immutable audit trail. An entry is accepted only inside the same batch as a real article write:
+    // create/update/check → the article's updatedAt after the batch is this request's time;
+    // delete → the article no longer exists after the batch. Each change { field, from, to } is
+    // validated by history.model.js (rules cannot loop over a list).
+    function assetPath(assetId) {
+      return /databases/$(database)/documents/assets/$(assetId);
+    }
+    function validHistory(data) {
+      return data.keys().hasOnly(['assetId', 'assetName', 'action', 'changes', 'by', 'byName', 'at'])
+        && data.keys().hasAll(['assetId', 'assetName', 'action', 'changes', 'by', 'byName', 'at'])
+        && isText(data.assetId, 1, 64)
+        && isText(data.assetName, 1, 120)
+        && data.action in ['create', 'update', 'check', 'delete']
+        && data.changes is list && data.changes.size() <= 20
+        && data.by == request.auth.uid
+        && isText(data.byName, 1, 80)
+        && data.at == request.time
+        && ((data.action == 'delete' && !existsAfter(assetPath(data.assetId)))
+            || (data.action != 'delete' && getAfter(assetPath(data.assetId)).data.updatedAt == request.time));
+    }
+
+    match /assetHistory/{entryId} {
+      allow read: if canEdit();
+      allow create: if canEdit() && validHistory(request.resource.data);
+      allow update, delete: if false;
     }
 
     // ---------- Catalogs: locations and assetTypes = "Categorías" (validCatalog),
@@ -183,6 +214,23 @@ service cloud.firestore {
       allow create: if canEdit() && validCatalog(request.resource.data) && request.resource.data.createdAt == request.time;
       allow update: if canEdit() && validCatalog(request.resource.data) && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if canEdit();
+    }
+
+    // ---------- Presence (connected users, read by the dashboard) ----------
+    // Each user writes only their own heartbeat; lastSeen must be the server time of the write.
+    function validPresence(uid) {
+      let data = request.resource.data;
+      return signedIn() && request.auth.uid == uid && hasActiveProfile()
+        && data.keys().hasOnly(['displayName', 'lastSeen'])
+        && data.keys().hasAll(['displayName', 'lastSeen'])
+        && isText(data.displayName, 1, 80)
+        && data.lastSeen == request.time;
+    }
+
+    match /presence/{uid} {
+      allow read: if canEdit();
+      allow create, update: if validPresence(uid);
+      allow delete: if signedIn() && request.auth.uid == uid;
     }
 
     // Everything else is closed.

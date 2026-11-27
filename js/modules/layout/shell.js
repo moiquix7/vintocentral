@@ -10,15 +10,7 @@ import { navigate } from '../../core/router.js';
 import { APP, ROLES } from '../../config/app-config.js';
 import { avatar } from '../../shared/avatar.js';
 import { appearanceControls, themeToggle } from '../../shared/appearance.js';
-
-const NAV_ITEMS = Object.freeze([
-  { path: '/dashboard', label: 'Inicio', icon: 'home', permission: 'assets.read' },
-  { path: '/assets', label: 'Artículos', icon: 'box', permission: 'assets.read' },
-  { path: '/inventory', label: 'Toma de inventario', icon: 'check', permission: 'assets.write' },
-  { path: '/catalogs', label: 'Catálogos', icon: 'tag', permission: 'catalogs.write' },
-  { path: '/reports', label: 'Reportes', icon: 'file', permission: 'reports.view' },
-  { path: '/users', label: 'Usuarios', icon: 'users', permission: 'users.manage' },
-]);
+import { NAV_ITEMS } from '../../config/navigation.js';
 
 let shell = null; // { root, main, nav, key, menu, toggle }
 
@@ -142,7 +134,7 @@ function build(root) {
       { class: 'app-header' },
       h(
         'a',
-        { class: 'brand', href: '#/dashboard' },
+        { class: 'brand', href: '#/home' },
         h('img', { src: APP.logo, alt: '', width: '36', height: '36', class: 'brand-logo' }),
         h('span', { class: 'brand-name' }, APP.name),
       ),

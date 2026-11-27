@@ -10,6 +10,9 @@ import { notify, handleError } from './notify.js';
 let state = Object.freeze({ user: null, profile: null });
 const listeners = new Set();
 let stopProfile = null;
+/** Tasks that need the signed-in user and run just before signing out (e.g. remove presence). */
+const signOutTasks = new Set();
+const SIGN_OUT_TASK_TIMEOUT_MS = 2000;
 
 function setState(user, profile) {
   state = Object.freeze({ user, profile });
@@ -41,7 +44,29 @@ export const session = Object.freeze({
     listeners.add(listener);
     return () => listeners.delete(listener);
   },
+  /**
+   * Registers a best-effort task to run before signing out, while the user is still signed in.
+   * Failures are only logged and the wait is capped, so sign-out never hangs (e.g. offline).
+   * @param {() => Promise<void> | void} task
+   * @returns {() => void} unregister
+   */
+  beforeSignOut(task) {
+    signOutTasks.add(task);
+    return () => signOutTasks.delete(task);
+  },
 });
+
+async function runSignOutTasks() {
+  const runs = [...signOutTasks].map((task) =>
+    Promise.resolve()
+      .then(task)
+      .catch((error) => console.warn('[VintoCentral] sign-out task failed', error)),
+  );
+  let timer = 0;
+  const timeout = new Promise((resolve) => (timer = setTimeout(resolve, SIGN_OUT_TASK_TIMEOUT_MS)));
+  await Promise.race([Promise.all(runs), timeout]);
+  clearTimeout(timer);
+}
 
 /**
  * Explains why a profile document does not grant access (null when it is valid).
@@ -61,10 +86,11 @@ function profileProblem(uid, exists, data) {
 }
 
 /**
- * Stops live listeners first (so they do not fail with permission errors), clears the state,
- * then signs out of Firebase.
+ * Runs the before-sign-out tasks, stops live listeners (so they do not fail with permission errors),
+ * clears the state, then signs out of Firebase.
  */
 export async function endSession() {
+  if (state.user) await runSignOutTasks();
   stopProfile?.();
   stopProfile = null;
   if (state.user || state.profile) setState(null, null);

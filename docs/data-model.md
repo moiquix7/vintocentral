@@ -66,6 +66,8 @@ Login lookup index: lets people sign in with a username instead of their email.
 | `locationId` | string | id from `locations`, required |
 | `condition` | string | `new` \| `good` \| `fair` \| `poor` \| `out_of_service` |
 | `availability` | string | `available` \| `in_use` \| `loaned` \| `in_repair` \| `missing` (Disponible, En uso, Prestado, En reparación, Extraviado). Optional in the rules; missing = `available` |
+| `unavailableReason` | string | 0–200, optional — why the article is not available. Only kept for `loaned`, `in_repair`, `missing` (the model empties it otherwise) |
+| `notes` | string | 0–500, optional — comments about the article's status (Observaciones) |
 | `tags` | string[] | max 10, each 1–30, lowercase, unique |
 | `acquisitionDate` | string | `YYYY-MM-DD` or empty |
 | `value` | number | 0 – 1 000 000 000 (unit value, local currency) |
@@ -76,9 +78,44 @@ Login lookup index: lets people sign in with a username instead of their email.
 
 ### Inventory-taking update
 
-The `#/inventory` grid changes only `locationId`, `condition`, `availability` and stamps
-`checkedAt` + `updatedAt` + `updatedBy` (`asset.service.js → checkAsset()`). The whole document is
-still validated by `validAsset()`.
+The `#/inventory` grid changes only `locationId`, `condition`, `availability`,
+`unavailableReason`, `notes` and stamps `checkedAt` + `updatedAt` + `updatedBy`
+(`asset.service.js → checkAsset()`). The whole document is still validated by `validAsset()`.
+
+## `assetHistory/{entryId}`
+
+Audit trail of article changes (UI: "Historial"). One entry per article write, written in the same
+batch as the article (`asset.service.js`). Immutable.
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `assetId` | string | 1–64, the article's document id |
+| `assetName` | string | 1–120, the article's name at the time (kept after deletion) |
+| `action` | string | `create` \| `update` \| `check` \| `delete` (Registró, Modificó, Verificó, Eliminó) |
+| `changes` | `{ field, from, to }[]` | max 20; `field` is an asset field name, `from`/`to` readable text ≤ 200 (validated by `history.model.js`; the rules check list type and size) |
+| `by` | string | uid of the author (must be the signed-in user) |
+| `byName` | string | 1–80, author's display name at the time |
+| `at` | timestamp | must be the server time of the write |
+
+- Read: `admin`, `editor`. Create: `admin`, `editor`, only together with the article write
+  (`create`/`update`/`check`: the article's `updatedAt` after the batch is this same server time;
+  `delete`: the article no longer exists after the batch). Update / delete: never.
+- Queries: by `assetId` (equality, sorted on the client) and by `at` descending with a limit — both use
+  automatic single-field indexes, no composite index needed.
+
+## `presence/{uid}`
+
+Heartbeat used by the dashboard to count connected users. Document id = the user's uid.
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `displayName` | string | 1–80 |
+| `lastSeen` | timestamp | must be the server time of the write |
+
+- Read: `admin`, `editor` (the dashboard). Create/update/delete: only the user themself, with an
+  active profile. No other fields are accepted.
+- Connected = `lastSeen` within the last 5 minutes. Old documents are harmless (they just count as
+  not connected) and are deleted on sign-out.
 
 ## `categories/{id}` (UI: "Departamentos"), `assetTypes/{id}` (UI: "Categorías") and `locations/{id}`
 
@@ -130,6 +167,8 @@ profiles/{uid}/{timestamp}-{random}.jpg
 
 | Permission | admin | editor | viewer |
 |------------|:-----:|:------:|:------:|
+| `dashboard.view` (+ read `presence`) | ✔ | ✔ | |
+| `history.view` (read `assetHistory`) | ✔ | ✔ | |
 | `assets.read` | ✔ | ✔ | ✔ |
 | `assets.write` | ✔ | ✔ | |
 | `assets.delete` | ✔ | | |

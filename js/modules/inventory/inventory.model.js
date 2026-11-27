@@ -3,8 +3,8 @@
  * A "round" starts on a date chosen by the user; an article is verified in that round when its
  * `checkedAt` is on or after the start of that day (local time).
  */
-import { foldText, isIsoDate } from '../../shared/validation.js';
-import { availabilityOf } from '../assets/asset.model.js';
+import { isIsoDate } from '../../shared/validation.js';
+import { INVENTORY_FIELDS, availabilityOf, isUnavailable } from '../assets/asset.model.js';
 
 export const CHECK_STATUS = Object.freeze({
   pending: 'Pendientes de verificar',
@@ -13,6 +13,9 @@ export const CHECK_STATUS = Object.freeze({
 });
 
 export const DEFAULT_CHECK_STATUS = 'pending';
+
+/** Walking order: by location (ties by name). A key of SORT_OPTIONS in asset-filter.js. */
+export const DEFAULT_INVENTORY_SORT = 'location:asc';
 
 /** Keeps a stored start date only when it is a real date not in the future; otherwise `today`. */
 export function normalizeRoundStart(value, today) {
@@ -37,9 +40,13 @@ export function isChecked(asset, roundStart) {
   return checkedAt !== null && checkedAt >= startOfDay(roundStart);
 }
 
-export function filterByCheck(assets, status, roundStart) {
-  if (status === 'checked') return assets.filter((asset) => isChecked(asset, roundStart));
-  if (status === 'pending') return assets.filter((asset) => !isChecked(asset, roundStart));
+/**
+ * @param {Set<string>} [keep] ids that stay listed whatever their state (rows edited since the
+ *   filters last changed, so a row does not vanish from "Pendientes" after its first save)
+ */
+export function filterByCheck(assets, status, roundStart, keep = new Set()) {
+  if (status === 'checked') return assets.filter((asset) => keep.has(asset.id) || isChecked(asset, roundStart));
+  if (status === 'pending') return assets.filter((asset) => keep.has(asset.id) || !isChecked(asset, roundStart));
   return assets;
 }
 
@@ -50,26 +57,19 @@ export function inventoryProgress(assets, roundStart) {
   return { checked, total, percent: total ? Math.floor((checked / total) * 100) : 0 };
 }
 
-/**
- * Walking order: by location, then by name (accent- and case-insensitive). Returns a new array.
- * @param {(id: string) => string} locationName
- */
-export function sortForWalk(assets, locationName) {
-  const key = (asset) => [foldText(locationName(asset.locationId)), foldText(asset.name)];
-  return [...assets].sort((a, b) => {
-    const [aPlace, aName] = key(a);
-    const [bPlace, bName] = key(b);
-    return aPlace.localeCompare(bPlace) || aName.localeCompare(bName);
-  });
-}
-
 /** The values the grid edits, as currently stored (old articles: availability defaults to available). */
 export function storedStatus(asset) {
-  return { locationId: asset.locationId ?? '', condition: asset.condition ?? '', availability: availabilityOf(asset) };
+  const availability = availabilityOf(asset);
+  return {
+    locationId: asset.locationId ?? '',
+    condition: asset.condition ?? '',
+    availability,
+    unavailableReason: isUnavailable(availability) ? asset.unavailableReason ?? '' : '',
+    notes: asset.notes ?? '',
+  };
 }
 
-/** True when the draft differs from what is stored. */
-export function hasChanges(asset, draft) {
-  const stored = storedStatus(asset);
-  return Object.keys(stored).some((key) => draft[key] !== stored[key]);
+/** True when two sets of grid values are equal (missing values count as empty). */
+export function sameStatus(a, b) {
+  return INVENTORY_FIELDS.every((key) => (a?.[key] ?? '') === (b?.[key] ?? ''));
 }

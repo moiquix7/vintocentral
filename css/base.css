@@ -35,6 +35,8 @@ h1:focus { outline: none; }
 .block { display: block; }
 .lead { font-size: 1.1rem; }
 .pre-line { white-space: pre-line; }
+/* The hidden attribute always wins over component display rules (e.g. .field { display: grid }). */
+[hidden] { display: none !important; }
 
 .visually-hidden {
   position: absolute !important;

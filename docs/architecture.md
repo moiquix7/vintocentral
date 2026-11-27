@@ -21,7 +21,7 @@ index.html ─► js/main.js ─► js/app.js
 |-------|----------------|------------|
 | `config/` | Constants: roles, permissions, asset conditions, limits, Firebase web config. Pure data. | nothing |
 | `core/` | Infrastructure: Firebase SDK (single place that knows the CDN version), router, session, errors, notifications, DOM helper, preferences, collection stores. | `config/` |
-| `shared/` | Reusable UI/browser helpers with no domain knowledge: dialogs, camera, image compression, formatting, script loader. | `core/`, `config/` |
+| `shared/` | Reusable UI/browser helpers with no domain knowledge: dialogs, camera, image compression, formatting, script loader, charts (KPI tile, bar list, segmented bar). | `core/`, `config/` |
 | `modules/<feature>/` | One feature each: `*.model.js` (pure validation/sanitising), `*.service.js` (Firebase access), `*.store.js` (live data), `*.view.js` (DOM). | `core/`, `shared/`, `config/`, and another module's **service/store/model** only (never another module's view). |
 
 Rules that keep **high cohesion / low coupling**:
@@ -30,6 +30,9 @@ Rules that keep **high cohesion / low coupling**:
 - `*.model.js`, `asset-filter.js`, `dashboard.stats.js` and `shared/validation.js` are **pure** (no DOM,
   no Firebase) so they run under Node's test runner.
 - Views never call Firestore directly; they call a service.
+- A module may also offer **components** (DOM builders without a route, e.g.
+  `history/history.timeline.js`) that other modules' views reuse; route views (`*.view.js`) are never
+  imported by another module.
 - Every view exports `render(container, context)` and may return a cleanup function, which the
   router calls before showing the next view (unsubscribes listeners, stops the camera, ...).
 
@@ -39,7 +42,10 @@ Rules that keep **high cohesion / low coupling**:
 |--------|----------|------------|
 | `auth` | `#/login` (username **or** email + password) | public |
 | `profile` | `#/profile` (name, username, photo, password) | any signed-in user |
-| `dashboard` | `#/dashboard` | `assets.read` |
+| `home` | `#/home` "Inicio" — overview for every role | `assets.read` |
+| `dashboard` | `#/dashboard` "Tablero" (admin and editor only) | `dashboard.view` |
+| `presence` | no route — heartbeat of connected users, read by the dashboard | any signed-in user writes its own |
+| `history` | `#/history` "Historial" (recent changes of all articles) + a section in the article detail | `history.view` (admin, editor) |
 | `assets` | `#/assets`, `#/assets/new`, `#/assets/:id`, `#/assets/:id/edit` | read / `assets.write` |
 | `inventory` | `#/inventory` — inventory-taking grid (see below) | `assets.write` |
 | `catalogs` | `#/catalogs` "Catálogos": categories (`assetTypes`), departments (stored as `categories`, with leader history) and locations | `catalogs.write` |
@@ -51,6 +57,60 @@ Interface wording follows the CLAUDE.md terminology: **Artículo** (never "bien"
 **Departamento**, **Ubicación**, **Etiqueta**, **Usuario**. The mapping to collections and fields is
 in `docs/data-model.md`.
 
+## Home (`#/home`, "Inicio")
+
+For every signed-in user (viewers land here after sign-in; the logo also leads here).
+
+- Indicators: articles registered, units, and bar lists by Categoría and by Ubicación.
+- **Últimos movimientos**: the last 10 articles added or updated, drawn as a vertical timeline in
+  **chronological order** (oldest of the ten first, the most recent at the bottom, marked "Lo más
+  reciente"). Each point: date and time, what happened (*Registrado*, *Modificado* or *Verificado
+  en la toma de inventario*, deduced from `createdAt` / `checkedAt` / `updatedAt`), the article's
+  category and location, and links **Ver** and **Editar** (Editar only with `assets.write`).
+- Built from the in-memory asset store (no extra reads, works for viewers, who cannot read the
+  change history). Pure logic in `home.model.js` (tested); totals reuse `dashboard.stats.js`, and the
+  KPI tile and bar lists come from `shared/charts.js` (also used by the Tablero).
+
+## Dashboard (`#/dashboard`, "Tablero")
+
+Only **admin** and **editor** (`dashboard.view`); it is their landing page after sign-in.
+
+- KPIs: articles, units, estimated value, **needs attention** (condition *Malo* / *Fuera de
+  servicio*, or availability *En reparación* / *Extraviado*) and **users connected now**.
+- Charts: 100 % segmented bars for *Estado* and *Disponibilidad* (legend with number and %, so
+  identity is never color alone) and horizontal bar lists by Categoría, Departamento and Ubicación
+  (each bar has a tooltip with units and share).
+- Quick links to the features the role may use (same permission list as the navigation).
+- Pure computations live in `dashboard.stats.js` and `presence.model.js` (tested).
+
+## Connected users (`modules/presence`)
+
+- While signed in, the browser writes `presence/{uid}` = `{ displayName, lastSeen }` every
+  2 minutes (only while the tab is visible) and once more when the tab becomes visible.
+- A user counts as *connected* when `lastSeen` is within the last 5 minutes
+  (`PRESENCE` in `app-config.js`), so a closed browser drops out on its own.
+- On sign-out the document is deleted (best effort, at most 2 s so sign-out never hangs:
+  `session.beforeSignOut()` hook).
+
+## Change history (`modules/history`)
+
+Audit trail of every change to an article, for **admin** and **editor** (`history.view`).
+
+- Every article write (`asset.service.js`: create, edit, inventory check, delete) adds one entry to
+  `assetHistory` **in the same batch** as the article write, so both succeed or both fail.
+- Each entry stores who (`by` uid + `byName`), when (`at`, server time), the action (Registró,
+  Modificó, Verificó, Eliminó) and the changed fields as readable text (`Estado: Bueno → Malo`).
+  Values are stored already described (catalog names, labels), so the history still reads well after
+  a location or category is renamed or deleted, and after the article itself is deleted.
+- Entries are immutable (rules: no update, no delete) and the rules only accept an entry written
+  together with a real article write.
+- Article detail → "Historial de cambios": that article's entries in **chronological order**
+  (oldest first). `#/history` → the latest changes of all articles (newest first, "Cargar más"),
+  with a text filter (article or user) and an action filter; deleted articles are listed too.
+- The diff and the entry shape are pure (`history.model.js`, tested); Firestore access is in
+  `history.service.js`.
+- Articles changed before this feature existed simply have no earlier entries.
+
 ## Inventory-taking (`#/inventory`)
 
 A grid to walk through the church and verify every article:
@@ -58,12 +118,21 @@ A grid to walk through the church and verify every article:
 - **Round start date** ("Inventario iniciado el", default today, remembered per browser): an article
   counts as *verified* when its `checkedAt` is on or after that date. A progress bar shows
   "N de M verificados".
-- Filters: text, category, department, location and *Pendientes / Verificados / Todos*.
-- Each row has three dropdowns — **Ubicación**, **Estado**, **Disponibilidad** — and one
-  **Verificar** button that saves those three fields and stamps `checkedAt` (one write per row,
-  `asset.service.js → checkAsset()`). Changed rows are highlighted until saved.
-- Unsaved choices survive live updates from other users (kept in a per-row draft); after saving,
-  focus moves to the next row so the whole list can be done from the keyboard.
+- Columns: Artículo, Categoría, Departamento, **Ubicación**, **Estado**, **Disponibilidad**,
+  **Motivo / Observaciones**, **Verificado**.
+- **Automatic save**: changing a dropdown saves at once; the two text fields save when they lose
+  focus (or Enter). Every save writes only the inventory fields and stamps `checkedAt`
+  (`asset.service.js → checkAsset()`). The **Verificado** checkbox stamps `checkedAt` for an article
+  that needs no change; once verified in the round it stays checked (the date is shown).
+- **Motivo** (why the article is not available) is shown only for *Prestado*, *En reparación* and
+  *Extraviado*; it is cleared when the article becomes available again. **Observaciones** is free.
+- Rows saved while a filter such as *Pendientes* is active stay visible until the filters change,
+  so a row does not vanish after its first dropdown change.
+- Saves of one row are queued (never two writes of the same row at once); unsaved values survive
+  live updates from other users (per-row draft); a failed save marks the row and keeps the values.
+- Filters: text, category, department, location, condition, availability and
+  *Pendientes / Verificados / Todos*; sort by location (walking order, default), name, category,
+  department, condition or availability.
 - Pure helpers (round date, verified check, progress) live in `inventory.model.js` and are tested.
 - Small screens and focus mode: each row becomes a card (same `responsive-table` pattern); on
   tablets the table scrolls horizontally inside its card instead of overflowing the page.
@@ -74,9 +143,10 @@ Hash routing (`#/path`) is used so the app works on **GitHub Pages** (which cann
 Firebase Hosting alike.
 
 - Unknown route → redirect to `#/login` (project rule). The login page forwards an already
-  signed-in user to `#/dashboard`.
+  signed-in user to their **home**: `#/dashboard` for admin/editor, `#/home` for viewer
+  (`homePath()` in `app.js`, given to the router).
 - Route without session → `#/login`.
-- Route without permission → `#/dashboard` with a message.
+- Route without permission → home with a message.
 - `404.html` sends any non-hash URL (e.g. `/vintocentral/anything`) back to `#/login`.
 
 ## Roles
@@ -84,8 +154,8 @@ Firebase Hosting alike.
 | Role | Can do |
 |------|--------|
 | `admin` | Everything, including deleting assets and managing users. |
-| `editor` | Register and update assets, manage categories and locations, reports. |
-| `viewer` | View assets, dashboard and reports. |
+| `editor` | Dashboard, register and update assets, inventory-taking, catalogs, reports, change history. |
+| `viewer` | Home page, view assets and reports (no dashboard, no history). |
 
 The role lives in `users/{uid}` (Firestore). The UI hides what a role cannot do, and the **security
 rules enforce it** (`firestore.rules`, `storage.rules`) — the UI is never the only barrier.
@@ -129,7 +199,9 @@ Photos are resized in the browser (max 1600 px, JPEG) before upload.
   Follows "don't make me think": logo, `h1` with the church name (`APP.churchFullName`),
   subtitle with the system name (`APP.systemName`), two fields with a leading icon (user, lock),
   a show/hide-password eye button inside the password field, one primary button and the
-  "¿Olvidó su contraseña?" link. No appearance options on this page.
+  "¿Olvidó su contraseña?" link. Below, "¿No tiene cuenta?": the system administrator
+  (`APP.adminContact`: name, role, optional email and phone shown as `mailto:` / `tel:` /
+  WhatsApp links; empty values are simply not shown). No appearance options on this page.
 - **User menu** (avatar button in the header): Mi perfil, appearance, focus mode, text size, Salir.
 - **Theme**: Sistema / Claro / Oscuro, in the user menu; a sun/moon button in the header switches
   light ↔ dark in one tap (it shows the mode it will switch to). **Palette**: five soft palettes (teal, salvia, lavanda,

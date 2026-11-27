@@ -57,7 +57,7 @@ export async function render(container) {
   const results = h('div', { class: 'results' });
 
   function drawResults() {
-    const matches = sortAssets(filterAssets(assetStore.getAll(), filters, catalogLookups), filters.sort);
+    const matches = sortAssets(filterAssets(assetStore.getAll(), filters, catalogLookups), filters.sort, catalogLookups);
     const total = assetStore.getAll().length;
     summary.textContent = `Mostrando ${Math.min(visible, matches.length)} de ${matches.length} (total registrados: ${total})`;
     if (matches.length === 0) {

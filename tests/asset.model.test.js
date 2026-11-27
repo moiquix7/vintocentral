@@ -97,11 +97,23 @@ test('availability: unknown or missing (old articles) counts as available', () =
   assert.equal(availabilityOf(null), 'available');
 });
 
-test('inventory update keeps only location, condition and availability', () => {
+test('inventory update keeps only the inventory fields', () => {
   const update = sanitizeInventoryUpdate({ locationId: ' loc2 ', condition: 'fair', availability: 'missing', name: 'x', checkedAt: 1 });
   assert.deepEqual(Object.keys(update).sort(), [...INVENTORY_FIELDS].sort());
   assert.equal(update.locationId, 'loc2');
   assert.deepEqual(validateInventoryUpdate(update), {});
   const errors = validateInventoryUpdate(sanitizeInventoryUpdate({ condition: 'broken', availability: 'lost' }));
   assert.deepEqual(Object.keys(errors).sort(), ['availability', 'condition', 'locationId']);
+});
+
+test('the unavailable reason is kept only while the article is not available; notes are limited', () => {
+  const loaned = sanitizeInventoryUpdate({ locationId: 'l', condition: 'good', availability: 'loaned', unavailableReason: '  Prestado a  Juan ', notes: 'ok' });
+  assert.equal(loaned.unavailableReason, 'Prestado a Juan');
+  assert.equal(loaned.notes, 'ok');
+  const back = sanitizeInventoryUpdate({ locationId: 'l', condition: 'good', availability: 'available', unavailableReason: 'Prestado' });
+  assert.equal(back.unavailableReason, '');
+  assert.equal(sanitizeAsset({ ...valid, availability: 'in_use', unavailableReason: 'x' }).unavailableReason, '');
+  assert.equal(sanitizeAsset({ ...valid, notes: 'a'.repeat(900) }).notes.length, 500);
+  assert.equal(sanitizeAsset({ ...valid, availability: 'missing', unavailableReason: 'b'.repeat(900) }).unavailableReason.length, 200);
+  assert.equal(sanitizeAsset({ ...valid, notes: 42 }).notes, '');
 });
