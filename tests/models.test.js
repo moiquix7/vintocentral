@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeStats } from '../js/modules/dashboard/dashboard.stats.js';
+import { computeStats, percentOf } from '../js/modules/dashboard/dashboard.stats.js';
 import {
   sanitizeCatalogItem,
   validateCatalogItem,
@@ -46,6 +46,21 @@ test('computeStats totals units, value and attention count', () => {
     stats.byAvailability.filter((g) => g.units).map((g) => [g.key, g.units]),
     [['available', 10], ['in_repair', 2], ['missing', 1]],
   );
+});
+
+test('needs attention: bad condition, under repair or missing (counted once per article)', () => {
+  const stats = computeStats(
+    [
+      { categoryId: 'a', locationId: 'x', condition: 'good', availability: 'missing' },
+      { categoryId: 'a', locationId: 'x', condition: 'new', availability: 'in_repair' },
+      { categoryId: 'a', locationId: 'x', condition: 'fair', availability: 'loaned' },
+      { categoryId: 'a', locationId: 'x', condition: 'poor', availability: 'missing' },
+    ],
+    lookups,
+  );
+  assert.equal(stats.needsAttention, 3);
+  assert.equal(percentOf(1, 3), 33);
+  assert.equal(percentOf(5, 0), 0);
 });
 
 test('computeStats on empty list', () => {

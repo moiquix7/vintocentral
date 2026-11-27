@@ -13,7 +13,7 @@ import { todayIso } from '../../shared/format.js';
 import { assetStore } from './asset.store.js';
 import { CATALOG_STORES, assetTypeStore, categoryStore, locationStore, catalogOptions, catalogsReady } from '../catalogs/catalog.store.js';
 import { createAsset, updateAsset } from './asset.service.js';
-import { sanitizePhotos, availabilityOf } from './asset.model.js';
+import { sanitizePhotos, availabilityOf, isUnavailable } from './asset.model.js';
 
 const L = LIMITS.asset;
 
@@ -161,10 +161,24 @@ export async function render(container, { params }) {
     tags: input({ maxlength: L.tags * (L.tagLength + 2), value: (v.tags ?? []).join(', '), autocomplete: 'off' }),
     condition: select(CONDITIONS, { value: v.condition ?? 'good' }),
     availability: select(AVAILABILITY, { value: availabilityOf(v) }),
+    unavailableReason: input({ maxlength: L.unavailableReason, value: isUnavailable(availabilityOf(v)) ? v.unavailableReason ?? '' : '', autocomplete: 'off' }),
+    notes: h('textarea', { rows: '2', maxlength: L.notes }, v.notes ?? ''),
     quantity: input({ type: 'number', inputmode: 'numeric', min: 1, max: L.maxQuantity, step: 1, value: v.quantity ?? 1 }),
     value: input({ type: 'number', inputmode: 'decimal', min: 0, max: L.maxValue, step: '0.01', value: v.value ?? '' }),
     acquisitionDate: input({ type: 'date', max: todayIso(), value: v.acquisitionDate ?? '' }),
   };
+  // The reason is asked only while the article is not available (loaned, under repair, missing).
+  const reasonField = field({
+    label: 'Motivo de no disponibilidad',
+    name: 'unavailableReason',
+    control: controls.unavailableReason,
+    hint: 'Opcional. Ej.: Prestado al grupo de jóvenes hasta junio.',
+  });
+  const syncReason = () => {
+    reasonField.hidden = !isUnavailable(controls.availability.value);
+  };
+  controls.availability.addEventListener('change', syncReason);
+  syncReason();
   const photos = createPhotoState(v.photos);
   const submit = h('button', { type: 'submit', class: 'btn btn-primary' }, editing ? 'Guardar cambios' : 'Registrar artículo');
 
@@ -194,9 +208,11 @@ export async function render(container, { params }) {
       h('legend', null, '3. Estado y valor'),
       field({ label: 'Estado', name: 'condition', control: controls.condition, required: true }),
       field({ label: 'Disponibilidad', name: 'availability', control: controls.availability, required: true }),
+      reasonField,
       field({ label: 'Cantidad', name: 'quantity', control: controls.quantity, required: true }),
       field({ label: 'Valor unitario', name: 'value', control: controls.value, hint: 'Opcional. Valor estimado de una unidad.' }),
       field({ label: 'Fecha de adquisición', name: 'acquisitionDate', control: controls.acquisitionDate }),
+      field({ label: 'Observaciones', name: 'notes', control: controls.notes, wide: true, hint: `Opcional. Comentarios sobre el estado del artículo. Máximo ${L.notes} caracteres.` }),
     ),
     photoSection(photos),
     h('div', { class: 'button-row form-actions' }, h('a', { href: backHref, class: 'btn btn-secondary' }, 'Cancelar'), submit),

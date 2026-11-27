@@ -26,7 +26,7 @@ function createForm(onCreated) {
     field({ label: 'Nombre', name: 'displayName', control: controls.displayName, required: true }),
     field({ label: 'Nombre de usuario', name: 'username', control: controls.username, required: true, hint: 'Con este nombre ingresará. Ej.: maria.lopez' }),
     field({ label: 'Correo electrónico', name: 'email', control: controls.email, required: true, hint: 'Para recuperar la contraseña.' }),
-    field({ label: 'Rol', name: 'role', control: controls.role, required: true, hint: 'Consulta: solo ve. Editor: registra y modifica. Administrador: todo.' }),
+    field({ label: 'Rol', name: 'role', control: controls.role, required: true, hint: 'Consulta: solo ve artículos y reportes. Editor: tablero, registra y modifica. Administrador: todo.' }),
     field({ label: 'Contraseña temporal', name: 'password', control: controls.password, required: true, hint: `Mínimo ${L.minPassword} caracteres. Entréguela a la persona y pídale cambiarla.` }),
     h('div', { class: 'field--wide button-row' }, submit),
   );

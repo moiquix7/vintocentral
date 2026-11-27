@@ -2,11 +2,12 @@
  * Login page ("don't make me think"): church photo background, logo, church name (h1),
  * system name, two fields with icons, one primary button and the password-reset link.
  * Appearance is not offered here: it uses the preferences already saved in the browser.
- * A signed-in user is forwarded to the dashboard.
+ * A signed-in user is forwarded to their home page.
+ * Below the form: who to contact for an account (APP.adminContact).
  */
 import { h, icon, mount } from '../../core/dom.js';
 import { session } from '../../core/session.js';
-import { navigate, HOME_PATH } from '../../core/router.js';
+import { navigateHome } from '../../core/router.js';
 import { notify } from '../../core/notify.js';
 import { APP, LIMITS } from '../../config/app-config.js';
 import { field, input, runSubmit } from '../../shared/form.js';
@@ -32,9 +33,34 @@ function passwordToggle(password) {
   return button;
 }
 
+/**
+ * "¿No tiene cuenta?" box: the system administrator and how to reach them.
+ * Email and phone come from APP.adminContact; an empty value is not shown.
+ */
+function adminContactBox() {
+  const { name, role, email, phone } = APP.adminContact;
+  const digits = phone.replace(/[^\d]/g, '');
+  const links = [
+    email ? h('a', { href: `mailto:${email}`, class: 'contact-link' }, icon('mail'), email) : null,
+    digits ? h('a', { href: `tel:+${digits}`, class: 'contact-link' }, icon('phone'), phone) : null,
+    digits
+      ? h('a', { href: `https://wa.me/${digits}`, class: 'contact-link', target: '_blank', rel: 'noopener noreferrer' }, icon('chat'), 'WhatsApp')
+      : null,
+  ].filter(Boolean);
+  return h(
+    'aside',
+    { class: 'login-help', 'aria-label': 'Ayuda para obtener una cuenta' },
+    h('p', { class: 'login-help-title' }, '¿No tiene cuenta?'),
+    h('p', null, 'Las cuentas las crea el administrador del sistema. Comuníquese con:'),
+    h('p', { class: 'login-help-name' }, h('strong', null, name), h('small', { class: 'muted block' }, role)),
+    links.length ? h('div', { class: 'contact-links' }, links) : null,
+    h('p', { class: 'muted login-help-note' }, 'Si olvidó su contraseña, use «¿Olvidó su contraseña?» arriba.'),
+  );
+}
+
 export async function render(container) {
   if (session.isAuthenticated) {
-    navigate(HOME_PATH);
+    navigateHome();
     return undefined;
   }
 
@@ -95,6 +121,7 @@ export async function render(container) {
         h('h1', { tabindex: '-1' }, APP.churchFullName),
         h('p', { class: 'login-subtitle' }, APP.systemName),
         form,
+        adminContactBox(),
       ),
     ),
   );

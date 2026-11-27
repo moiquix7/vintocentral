@@ -1,19 +1,24 @@
 /**
- * Inventory-taking grid (#/inventory). Walk through the church, and for each article set its location,
- * condition and availability, then press "Verificar" (one write per row: asset.service.js → checkAsset).
+ * Inventory-taking grid (#/inventory). Walk through the church and, for each article, review its
+ * location, condition and availability. Changes are saved automatically (asset.service.js → checkAsset):
+ * dropdowns at once, the text fields (reason, notes) when they lose focus. Every save also marks the
+ * article as verified; the "Verificado" checkbox does it for an article that needs no change.
  *
  * - Round start date: articles verified on or after it count as done (progress bar).
- * - Unsaved choices are kept in `drafts`, so live updates from other users never erase them.
- * - After a save, focus moves to the next row (keyboard-only work is possible).
+ * - Saves of one row are queued; unsaved values live in `drafts`, so live updates from other users
+ *   never erase them, and a failed save keeps them (the row offers "Reintentar").
+ * - Rows saved since the filters last changed stay listed (`keep`), so a row does not vanish from
+ *   "Pendientes" after its first change.
  */
 import { h, icon, mount, pageHeader } from '../../core/dom.js';
 import { handleError } from '../../core/notify.js';
-import { AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
+import { AVAILABILITY, CONDITIONS, LIMITS } from '../../config/app-config.js';
 import { field, input, select } from '../../shared/form.js';
 import { formatDateTime, formatNumber, todayIso } from '../../shared/format.js';
 import { assetStore } from '../assets/asset.store.js';
 import { checkAsset } from '../assets/asset.service.js';
-import { EMPTY_FILTERS, filterAssets } from '../assets/asset-filter.js';
+import { INVENTORY_FIELDS, isUnavailable } from '../assets/asset.model.js';
+import { EMPTY_FILTERS, SORT_OPTIONS, filterAssets, sortAssets } from '../assets/asset-filter.js';
 import {
   CATALOG_STORES,
   assetTypeStore,
@@ -26,21 +31,21 @@ import {
 import {
   CHECK_STATUS,
   DEFAULT_CHECK_STATUS,
+  DEFAULT_INVENTORY_SORT,
   normalizeRoundStart,
   isChecked,
   filterByCheck,
   inventoryProgress,
-  sortForWalk,
   storedStatus,
-  hasChanges,
+  sameStatus,
 } from './inventory.model.js';
 
 const PAGE_SIZE = 50;
 const ROUND_KEY = 'vintocentral.inventoryRound';
-const STATUS_FIELDS = Object.freeze(['locationId', 'condition', 'availability']);
+const COLUMNS = Object.freeze(['Artículo', 'Categoría', 'Departamento', 'Ubicación', 'Estado', 'Disponibilidad', 'Motivo / Observaciones', 'Verificado']);
 
 /** Filters survive navigation within the session (e.g. grid → article detail → back). */
-let filters = { ...EMPTY_FILTERS, check: DEFAULT_CHECK_STATUS };
+let filters = { ...EMPTY_FILTERS, check: DEFAULT_CHECK_STATUS, sort: DEFAULT_INVENTORY_SORT };
 
 function loadRoundStart() {
   try {
@@ -59,17 +64,9 @@ function saveRoundStart(value) {
 }
 
 function valuesOf(controls) {
-  return Object.fromEntries(STATUS_FIELDS.map((name) => [name, controls[name].value]));
-}
-
-function checkCell(asset, roundStart) {
-  const done = isChecked(asset, roundStart);
-  return h(
-    'td',
-    { dataset: { label: 'Verificación' } },
-    h('span', { class: `badge ${done ? 'badge--checked' : 'badge--pending'}` }, done ? 'Verificado' : 'Pendiente'),
-    asset.checkedAt ? h('small', { class: 'muted block secondary' }, formatDateTime(asset.checkedAt)) : null,
-  );
+  const values = Object.fromEntries(INVENTORY_FIELDS.map((name) => [name, controls[name].value]));
+  if (!isUnavailable(values.availability)) values.unavailableReason = '';
+  return values;
 }
 
 export async function render(container) {
@@ -79,10 +76,14 @@ export async function render(container) {
   let visible = PAGE_SIZE;
   let shownIds = [];
   let focusTarget = null; // { asset, field } to focus after the next draw
-  const drafts = new Map(); // asset id → { locationId, condition, availability } not saved yet
+  let disposed = false;
+  const drafts = new Map(); // asset id → values not confirmed by the server yet
+  const queues = new Map(); // asset id → { running, next, moveNext }
+  const rowState = new Map(); // asset id → 'saving' | 'error'
+  const keep = new Set(); // ids saved since the filters last changed
 
   const startDate = input({ type: 'date', max: todayIso(), value: roundStart });
-  const progressBar = h('progress', { class: 'progress', max: '1', value: '0' });
+  const progressBar = h('progress', { class: 'progress', max: '1', value: '0', 'aria-label': 'Avance de la toma de inventario' });
   const progressText = h('p', { class: 'lead progress-text' });
   const lastSaved = h('p', { class: 'muted', role: 'status' });
 
@@ -94,10 +95,15 @@ export async function render(container) {
     maxlength: 80,
     value: filters.text,
   });
-  const type = select(catalogOptions(assetTypeStore), { value: filters.typeId, placeholder: 'Todas las categorías', 'aria-label': 'Categoría' });
-  const category = select(catalogOptions(categoryStore), { value: filters.categoryId, placeholder: 'Todos los departamentos', 'aria-label': 'Departamento' });
-  const place = select(catalogOptions(locationStore), { value: filters.locationId, placeholder: 'Todas las ubicaciones', 'aria-label': 'Ubicación' });
-  const check = select(CHECK_STATUS, { value: filters.check, 'aria-label': 'Verificación' });
+  const selects = {
+    check: select(CHECK_STATUS, { value: filters.check, 'aria-label': 'Verificación' }),
+    locationId: select(catalogOptions(locationStore), { value: filters.locationId, placeholder: 'Todas las ubicaciones', 'aria-label': 'Ubicación' }),
+    typeId: select(catalogOptions(assetTypeStore), { value: filters.typeId, placeholder: 'Todas las categorías', 'aria-label': 'Categoría' }),
+    categoryId: select(catalogOptions(categoryStore), { value: filters.categoryId, placeholder: 'Todos los departamentos', 'aria-label': 'Departamento' }),
+    condition: select(CONDITIONS, { value: filters.condition, placeholder: 'Todos los estados', 'aria-label': 'Estado' }),
+    availability: select(AVAILABILITY, { value: filters.availability, placeholder: 'Toda disponibilidad', 'aria-label': 'Disponibilidad' }),
+    sort: select(SORT_OPTIONS, { value: filters.sort, 'aria-label': 'Ordenar por' }),
+  };
   const summary = h('p', { class: 'muted', role: 'status' });
   const results = h('div', { class: 'results' });
 
@@ -106,74 +112,144 @@ export async function render(container) {
     return index >= 0 ? shownIds[index + 1] ?? null : null;
   }
 
-  async function verify(asset, controls, button) {
-    const values = valuesOf(controls);
-    const nextId = nextIdAfter(asset.id);
-    button.disabled = true;
-    button.textContent = 'Guardando…';
-    try {
-      await checkAsset(asset.id, values);
-      drafts.delete(asset.id);
-      lastSaved.textContent = `Último verificado: ${asset.name}.`;
-      focusTarget = nextId ? { asset: nextId, field: 'locationId' } : null;
-      draw();
-    } catch (error) {
-      handleError(error, 'inventory check');
-      if (button.isConnected) {
-        button.disabled = false;
-        controls.refresh();
+  /** Queues a save of `values` for this row; only the latest pending values are written. */
+  function save(asset, values, { moveNext = false } = {}) {
+    drafts.set(asset.id, values);
+    keep.add(asset.id);
+    const queue = queues.get(asset.id) ?? { running: false, next: null, moveNext: false };
+    queues.set(asset.id, queue);
+    queue.next = values;
+    queue.moveNext ||= moveNext;
+    if (!queue.running) runQueue(asset, queue);
+  }
+
+  async function runQueue(asset, queue) {
+    queue.running = true;
+    rowState.set(asset.id, 'saving');
+    draw();
+    let failed = false;
+    // Keeps writing even after leaving the page: the last change must not be lost.
+    while (queue.next) {
+      const values = queue.next;
+      queue.next = null;
+      try {
+        await checkAsset(asset.id, values);
+        if (drafts.get(asset.id) === values) drafts.delete(asset.id);
+      } catch (error) {
+        handleError(error, 'inventory save');
+        queue.next = null;
+        failed = true;
       }
     }
+    queue.running = false;
+    if (disposed) return;
+    if (failed) {
+      rowState.set(asset.id, 'error');
+      lastSaved.textContent = `No se guardó: ${asset.name}. Pulse «Reintentar».`;
+      if (queue.moveNext) focusTarget = { asset: asset.id, field: 'retry' };
+    } else {
+      rowState.delete(asset.id);
+      lastSaved.textContent = `Guardado y verificado: ${asset.name}.`;
+      if (queue.moveNext) {
+        const nextId = nextIdAfter(asset.id);
+        focusTarget = nextId ? { asset: nextId, field: 'locationId' } : null;
+      }
+    }
+    queue.moveNext = false;
+    draw();
+  }
+
+  function statusCell(asset, controls) {
+    const state = rowState.get(asset.id);
+    const done = isChecked(asset, roundStart);
+    const checkbox = h('input', {
+      type: 'checkbox',
+      checked: done || state === 'saving',
+      disabled: done || state === 'saving',
+      'aria-label': `Verificado: ${asset.name}`,
+      dataset: { asset: asset.id, field: 'verify' },
+    });
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) save(asset, valuesOf(controls), { moveNext: true });
+    });
+
+    let detail = null;
+    if (state === 'saving') detail = h('small', { class: 'muted block' }, 'Guardando…');
+    else if (state === 'error') {
+      detail = h(
+        'button',
+        {
+          type: 'button',
+          class: 'btn btn-secondary btn-small',
+          dataset: { asset: asset.id, field: 'retry' },
+          onclick: () => save(asset, drafts.get(asset.id) ?? valuesOf(controls)),
+        },
+        'Reintentar',
+      );
+    } else if (asset.checkedAt) detail = h('small', { class: 'muted block' }, formatDateTime(asset.checkedAt));
+
+    return h(
+      'td',
+      { dataset: { label: 'Verificado' }, class: 'col-check' },
+      h('label', { class: 'check-toggle' }, checkbox, h('span', null, done ? 'Verificado' : 'Pendiente')),
+      detail,
+    );
   }
 
   function row(asset) {
-    const draft = drafts.get(asset.id) ?? storedStatus(asset);
+    const current = drafts.get(asset.id) ?? storedStatus(asset);
     const label = (text) => `${text} de ${asset.name}`;
+    const data = (name) => ({ asset: asset.id, field: name });
     const controls = {
-      locationId: select(catalogOptions(locationStore), {
-        value: draft.locationId,
-        placeholder: 'Elija…',
-        'aria-label': label('Ubicación'),
-        dataset: { asset: asset.id, field: 'locationId' },
+      locationId: select(catalogOptions(locationStore), { value: current.locationId, placeholder: 'Elija…', 'aria-label': label('Ubicación'), dataset: data('locationId') }),
+      condition: select(CONDITIONS, { value: current.condition, 'aria-label': label('Estado'), dataset: data('condition') }),
+      availability: select(AVAILABILITY, { value: current.availability, 'aria-label': label('Disponibilidad'), dataset: data('availability') }),
+      unavailableReason: input({
+        value: current.unavailableReason,
+        maxlength: LIMITS.asset.unavailableReason,
+        placeholder: 'Motivo: ¿por qué no está disponible?',
+        'aria-label': label('Motivo de no disponibilidad'),
+        hidden: !isUnavailable(current.availability),
+        dataset: data('unavailableReason'),
       }),
-      condition: select(CONDITIONS, { value: draft.condition, 'aria-label': label('Estado'), dataset: { asset: asset.id, field: 'condition' } }),
-      availability: select(AVAILABILITY, {
-        value: draft.availability,
-        'aria-label': label('Disponibilidad'),
-        dataset: { asset: asset.id, field: 'availability' },
+      notes: input({
+        value: current.notes,
+        maxlength: LIMITS.asset.notes,
+        placeholder: 'Observaciones',
+        'aria-label': label('Observaciones'),
+        dataset: data('notes'),
       }),
     };
-    const button = h('button', { type: 'button', class: 'btn btn-primary btn-small', dataset: { asset: asset.id, field: 'verify' } });
-    const tr = h(
+
+    const saveIfChanged = () => {
+      const values = valuesOf(controls);
+      if (!sameStatus(values, drafts.get(asset.id) ?? storedStatus(asset))) save(asset, values);
+    };
+    ['locationId', 'condition', 'availability'].forEach((name) => controls[name].addEventListener('change', saveIfChanged));
+    controls.availability.addEventListener('change', () => {
+      controls.unavailableReason.hidden = !isUnavailable(controls.availability.value);
+    });
+    // Text fields: 'change' fires on blur or Enter, so a save never interrupts typing.
+    ['unavailableReason', 'notes'].forEach((name) => controls[name].addEventListener('change', saveIfChanged));
+
+    const state = rowState.get(asset.id);
+    return h(
       'tr',
-      null,
+      { class: state === 'error' ? 'is-error' : state === 'saving' ? 'is-saving' : null },
       h(
         'td',
         { dataset: { label: 'Artículo' } },
         h('a', { href: `#/assets/${encodeURIComponent(asset.id)}`, class: 'row-link' }, asset.name),
         asset.code ? h('small', { class: 'muted block' }, asset.code) : null,
-        h('small', { class: 'muted block secondary' }, `${catalogLookups.typeName(asset.typeId)} · ${catalogLookups.categoryName(asset.categoryId)}`),
       ),
+      h('td', { dataset: { label: 'Categoría' } }, catalogLookups.typeName(asset.typeId)),
+      h('td', { dataset: { label: 'Departamento' } }, catalogLookups.categoryName(asset.categoryId)),
       h('td', { dataset: { label: 'Ubicación' } }, controls.locationId),
       h('td', { dataset: { label: 'Estado' } }, controls.condition),
       h('td', { dataset: { label: 'Disponibilidad' } }, controls.availability),
-      checkCell(asset, roundStart),
-      h('td', { class: 'col-action' }, button),
+      h('td', { dataset: { label: 'Motivo / Observaciones' }, class: 'col-notes' }, controls.unavailableReason, controls.notes),
+      statusCell(asset, controls),
     );
-
-    controls.refresh = () => {
-      const current = valuesOf(controls);
-      const changed = hasChanges(asset, current);
-      if (changed) drafts.set(asset.id, current);
-      else drafts.delete(asset.id);
-      tr.classList.toggle('is-changed', changed);
-      button.replaceChildren(icon('check'), changed ? 'Guardar y verificar' : 'Verificar');
-      button.setAttribute('aria-label', `${changed ? 'Guardar y verificar' : 'Verificar'}: ${asset.name}`);
-    };
-    STATUS_FIELDS.forEach((name) => controls[name].addEventListener('change', controls.refresh));
-    button.addEventListener('click', () => verify(asset, controls, button));
-    controls.refresh();
-    return tr;
   }
 
   /** Control to focus after redrawing: the requested one, or the one that had focus before. */
@@ -184,7 +260,8 @@ export async function render(container) {
   }
 
   function draw() {
-    const keep = focusToRestore();
+    if (disposed) return;
+    const keepFocus = focusToRestore();
     focusTarget = null;
 
     const all = assetStore.getAll();
@@ -192,10 +269,9 @@ export async function render(container) {
     const progress = inventoryProgress(scope, roundStart);
     progressBar.max = String(Math.max(progress.total, 1));
     progressBar.value = String(progress.checked);
-    progressBar.setAttribute('aria-label', 'Avance de la toma de inventario');
     progressText.textContent = `Verificados: ${formatNumber(progress.checked)} de ${formatNumber(progress.total)} (${progress.percent} %)`;
 
-    const matches = sortForWalk(filterByCheck(scope, filters.check, roundStart), catalogLookups.locationName);
+    const matches = sortAssets(filterByCheck(scope, filters.check, roundStart, keep), filters.sort, catalogLookups);
     const page = matches.slice(0, visible);
     shownIds = page.map((asset) => asset.id);
     summary.textContent = `Mostrando ${page.length} de ${matches.length}`;
@@ -222,29 +298,21 @@ export async function render(container) {
         h(
           'table',
           { class: 'table responsive-table inventory-table' },
-          h('caption', { class: 'visually-hidden' }, 'Toma de inventario: un artículo por fila'),
-          h(
-            'thead',
-            null,
-            h(
-              'tr',
-              null,
-              ['Artículo', 'Ubicación', 'Estado', 'Disponibilidad', 'Verificación'].map((text) => h('th', { scope: 'col' }, text)),
-              h('th', { scope: 'col' }, h('span', { class: 'visually-hidden' }, 'Acción')),
-            ),
-          ),
+          h('caption', { class: 'visually-hidden' }, 'Toma de inventario: un artículo por fila; los cambios se guardan solos'),
+          h('thead', null, h('tr', null, COLUMNS.map((text) => h('th', { scope: 'col' }, text)))),
           h('tbody', null, page.map(row)),
         ),
       ),
       more,
     );
 
-    if (keep) results.querySelector(`[data-asset="${CSS.escape(keep.asset)}"][data-field="${CSS.escape(keep.field)}"]`)?.focus();
+    if (keepFocus) results.querySelector(`[data-asset="${CSS.escape(keepFocus.asset)}"][data-field="${CSS.escape(keepFocus.field)}"]`)?.focus();
   }
 
   function update(patch) {
     filters = { ...filters, ...patch };
     visible = PAGE_SIZE;
+    keep.clear();
     draw();
   }
 
@@ -252,6 +320,7 @@ export async function render(container) {
     roundStart = normalizeRoundStart(startDate.value, todayIso());
     startDate.value = roundStart;
     saveRoundStart(roundStart);
+    keep.clear();
     draw();
   });
   let debounce = 0;
@@ -259,10 +328,7 @@ export async function render(container) {
     clearTimeout(debounce);
     debounce = setTimeout(() => update({ text: search.value }), 200);
   });
-  type.addEventListener('change', () => update({ typeId: type.value }));
-  category.addEventListener('change', () => update({ categoryId: category.value }));
-  place.addEventListener('change', () => update({ locationId: place.value }));
-  check.addEventListener('change', () => update({ check: check.value }));
+  Object.entries(selects).forEach(([name, control]) => control.addEventListener('change', () => update({ [name]: control.value })));
 
   mount(
     container,
@@ -273,8 +339,10 @@ export async function render(container) {
       h(
         'p',
         { class: 'muted' },
-        'Recorra la iglesia por ubicación. En cada artículo revise la ubicación, el estado y la disponibilidad, y pulse ',
-        h('strong', null, 'Verificar'),
+        'Recorra la iglesia por ubicación. Revise cada artículo: ',
+        h('strong', null, 'los cambios se guardan solos'),
+        '. Si el artículo está bien y no necesita cambios, marque ',
+        h('strong', null, 'Verificado'),
         '.',
       ),
       h(
@@ -286,9 +354,9 @@ export async function render(container) {
     ),
     h(
       'section',
-      { class: 'card toolbar', 'aria-label': 'Búsqueda y filtros' },
+      { class: 'card toolbar', 'aria-label': 'Búsqueda, filtros y orden' },
       h('div', { class: 'search-box' }, icon('search'), search),
-      h('div', { class: 'filters' }, check, place, type, category),
+      h('div', { class: 'filters' }, Object.values(selects)),
     ),
     summary,
     results,
@@ -297,6 +365,7 @@ export async function render(container) {
 
   const unsubscribers = [assetStore, ...CATALOG_STORES].map((store) => store.subscribe(draw));
   return () => {
+    disposed = true;
     clearTimeout(debounce);
     unsubscribers.forEach((unsubscribe) => unsubscribe());
   };

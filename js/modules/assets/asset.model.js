@@ -2,7 +2,7 @@
  * Asset model: whitelisting, sanitising and validation. Pure (no DOM, no Firebase).
  * The field list and limits must match `validAsset()` in firestore.rules.
  */
-import { AVAILABILITY, CONDITIONS, DEFAULT_AVAILABILITY, LIMITS } from '../../config/app-config.js';
+import { AVAILABILITY, CONDITIONS, DEFAULT_AVAILABILITY, LIMITS, UNAVAILABLE } from '../../config/app-config.js';
 import { cleanText, cleanMultiline, toNumber, isIsoDate } from '../../shared/validation.js';
 
 const L = LIMITS.asset;
@@ -17,6 +17,8 @@ export const ASSET_FIELDS = Object.freeze([
   'locationId',
   'condition',
   'availability',
+  'unavailableReason',
+  'notes',
   'tags',
   'acquisitionDate',
   'value',
@@ -35,6 +37,21 @@ export function normalizeTags(input) {
   return [...unique];
 }
 
+/** True when the availability means "not available" (the only case where a reason is kept). */
+export function isUnavailable(availability) {
+  return UNAVAILABLE.includes(availability);
+}
+
+/** availability + its reason (emptied when the article is available) + notes. Shared by both sanitizers. */
+function statusText(input) {
+  const availability = cleanText(input.availability, 20);
+  return {
+    availability,
+    unavailableReason: isUnavailable(availability) ? cleanText(input.unavailableReason, L.unavailableReason) : '',
+    notes: cleanMultiline(input.notes, L.notes),
+  };
+}
+
 /**
  * Keeps only known fields, with the right types and lengths.
  * Invalid numbers are kept as NaN/null so validateAsset() can report them.
@@ -50,7 +67,7 @@ export function sanitizeAsset(input = {}) {
     categoryId: cleanText(input.categoryId, 64),
     locationId: cleanText(input.locationId, 64),
     condition: cleanText(input.condition, 20),
-    availability: cleanText(input.availability, 20),
+    ...statusText(input),
     tags: normalizeTags(input.tags),
     acquisitionDate: cleanText(input.acquisitionDate, 10),
     value: value === null ? 0 : value,
@@ -88,17 +105,17 @@ export function availabilityOf(asset) {
 }
 
 /** Fields the inventory-taking grid may change (the service adds checkedAt and the stamps). */
-export const INVENTORY_FIELDS = Object.freeze(['locationId', 'condition', 'availability']);
+export const INVENTORY_FIELDS = Object.freeze(['locationId', 'condition', 'availability', 'unavailableReason', 'notes']);
 
 export function sanitizeInventoryUpdate(input = {}) {
   return {
     locationId: cleanText(input.locationId, 64),
     condition: cleanText(input.condition, 20),
-    availability: cleanText(input.availability, 20),
+    ...statusText(input),
   };
 }
 
-/** Also used by validateAsset(): the three fields share the same rules everywhere. */
+/** Also used by validateAsset(): the inventory fields share the same rules everywhere (the texts are optional). */
 export function validateInventoryUpdate(update) {
   const errors = {};
   if (!update.locationId) errors.locationId = 'Elija una ubicación.';

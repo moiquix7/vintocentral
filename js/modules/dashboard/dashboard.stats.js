@@ -1,5 +1,5 @@
 /** Dashboard indicators computed from the in-memory asset list. Pure. */
-import { ATTENTION_CONDITIONS, AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
+import { ATTENTION_AVAILABILITY, ATTENTION_CONDITIONS, AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
 import { availabilityOf } from '../assets/asset.model.js';
 
 /**
@@ -26,6 +26,16 @@ function unitsPerOption(assets, options, valueOf) {
   }));
 }
 
+/** An article needs attention when it is in bad condition, under repair or missing. */
+export function needsAttention(asset) {
+  return ATTENTION_CONDITIONS.includes(asset.condition) || ATTENTION_AVAILABILITY.includes(availabilityOf(asset));
+}
+
+/** Share of `part` in `total`, as a whole percent (0 when total is 0). */
+export function percentOf(part, total) {
+  return total > 0 ? Math.round((part / total) * 100) : 0;
+}
+
 function quantityOf(asset) {
   return Number.isInteger(asset.quantity) && asset.quantity > 0 ? asset.quantity : 1;
 }
@@ -37,18 +47,18 @@ function quantityOf(asset) {
 export function computeStats(assets, lookups) {
   let totalUnits = 0;
   let totalValue = 0;
-  let needsAttention = 0;
+  let attention = 0;
   for (const asset of assets) {
     const units = quantityOf(asset);
     totalUnits += units;
     totalValue += (Number(asset.value) || 0) * units;
-    if (ATTENTION_CONDITIONS.includes(asset.condition)) needsAttention += 1;
+    if (needsAttention(asset)) attention += 1;
   }
   return {
     totalRecords: assets.length,
     totalUnits,
     totalValue,
-    needsAttention,
+    needsAttention: attention,
     byType: groupUnits(assets, (a) => a.typeId, lookups.typeName),
     byCategory: groupUnits(assets, (a) => a.categoryId, lookups.categoryName),
     byLocation: groupUnits(assets, (a) => a.locationId, lookups.locationName),

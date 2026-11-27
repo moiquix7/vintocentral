@@ -9,6 +9,8 @@ import { assetStore } from './asset.store.js';
 import { catalogLookups, catalogsReady } from '../catalogs/catalog.store.js';
 import { deleteAsset } from './asset.service.js';
 import { availabilityBadge, conditionBadge } from './asset-ui.js';
+import { availabilityOf, isUnavailable } from './asset.model.js';
+import { assetHistorySection } from '../history/history.timeline.js';
 
 function detailRow(label, value) {
   return [h('dt', null, label), h('dd', null, value || '—')];
@@ -52,7 +54,8 @@ async function onDelete(asset, button) {
   }
 }
 
-function draw(container, asset) {
+/** @param {HTMLElement | null} historyNode "Historial de cambios" card (admin/editor only) */
+function draw(container, asset, historyNode) {
   const actions = [h('a', { href: '#/assets', class: 'btn btn-secondary' }, icon('back'), 'Volver')];
   if (session.can('assets.write')) {
     actions.push(h('a', { href: `#/assets/${encodeURIComponent(asset.id)}/edit`, class: 'btn btn-primary' }, icon('edit'), 'Editar'));
@@ -83,6 +86,8 @@ function draw(container, asset) {
           detailRow('Ubicación', catalogLookups.locationName(asset.locationId)),
           detailRow('Estado', conditionBadge(asset.condition)),
           detailRow('Disponibilidad', availabilityBadge(asset)),
+          isUnavailable(availabilityOf(asset)) ? detailRow('Motivo', asset.unavailableReason) : null,
+          detailRow('Observaciones', asset.notes ? h('span', { class: 'pre-line' }, asset.notes) : ''),
           detailRow('Cantidad', formatNumber(asset.quantity)),
           detailRow('Valor unitario', formatCurrency(asset.value)),
           detailRow('Valor total', formatCurrency((asset.value || 0) * (asset.quantity || 1))),
@@ -94,6 +99,7 @@ function draw(container, asset) {
         ),
       ),
     ),
+    historyNode,
   );
 }
 
@@ -105,11 +111,19 @@ export async function render(container, { params }) {
     navigate('/assets');
     return undefined;
   }
-  draw(container, initial);
+  // The history card is built once and kept across redraws; it reloads when the article changes.
+  const history = session.can('history.view') ? assetHistorySection(initial.id) : null;
+  let lastUpdate = initial.updatedAt?.toMillis?.() ?? 0;
+  draw(container, initial, history?.node ?? null);
   // Live updates; if the asset disappears (deleted here or elsewhere) the delete flow / user navigates away.
   return assetStore.subscribe(() => {
     const asset = assetStore.getById(params.id);
-    if (asset) draw(container, asset);
+    const update = asset?.updatedAt?.toMillis?.() ?? 0;
+    if (asset && history && update !== lastUpdate) {
+      lastUpdate = update;
+      history.refresh();
+    }
+    if (asset) draw(container, asset, history?.node ?? null);
     else mount(container, pageHeader('Artículo eliminado', h('a', { href: '#/assets', class: 'btn btn-secondary' }, icon('back'), 'Volver')));
   });
 }

@@ -5,9 +5,8 @@ import {
   isChecked,
   filterByCheck,
   inventoryProgress,
-  sortForWalk,
   storedStatus,
-  hasChanges,
+  sameStatus,
 } from '../js/modules/inventory/inventory.model.js';
 
 /** Minimal Firestore Timestamp stand-in. */
@@ -45,15 +44,20 @@ test('pending / checked / all filters and progress', () => {
   assert.deepEqual(inventoryProgress([], '2026-01-01'), { checked: 0, total: 0, percent: 0 });
 });
 
-test('walking order: by location name, then article name, without mutating input', () => {
-  const names = { l1: 'Templo', l2: 'Salón de jóvenes' };
-  assert.deepEqual(sortForWalk(assets, (id) => names[id]).map((a) => a.id), ['3', '2', '1']);
-  assert.deepEqual(assets.map((a) => a.id), ['1', '2', '3']);
+test('rows edited since the filters changed stay listed', () => {
+  const keep = new Set(['1']);
+  const pending = filterByCheck(assets, 'pending', '2026-01-01', keep).map((a) => a.id);
+  assert.ok(pending.includes('1'));
 });
 
 test('row changes are detected against the stored values (old articles: available)', () => {
-  assert.deepEqual(storedStatus(assets[0]), { locationId: 'l1', condition: 'good', availability: 'available' });
-  assert.equal(hasChanges(assets[0], { locationId: 'l1', condition: 'good', availability: 'available' }), false);
-  assert.equal(hasChanges(assets[0], { locationId: 'l2', condition: 'good', availability: 'available' }), true);
-  assert.equal(hasChanges(assets[0], { locationId: 'l1', condition: 'good', availability: 'missing' }), true);
+  const same = { locationId: 'l1', condition: 'good', availability: 'available', unavailableReason: '', notes: '' };
+  assert.deepEqual(storedStatus(assets[0]), same);
+  assert.equal(sameStatus(storedStatus(assets[0]), same), true);
+  assert.equal(sameStatus(storedStatus(assets[0]), { ...same, locationId: 'l2' }), false);
+  assert.equal(sameStatus(storedStatus(assets[0]), { ...same, availability: 'missing' }), false);
+  assert.equal(sameStatus(storedStatus(assets[0]), { ...same, notes: 'Pata floja' }), false);
+  assert.equal(sameStatus({ locationId: 'l1' }, { locationId: 'l1', notes: '' }), true);
+  // A stale reason on an available article is not part of its status.
+  assert.equal(storedStatus({ ...assets[0], availability: 'in_use', unavailableReason: 'x' }).unavailableReason, '');
 });

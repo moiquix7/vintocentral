@@ -4,16 +4,17 @@
  * Route: { path: '/assets/:id', title, view: () => import(...), public?, permission? }
  * View module: export async function render(container, { params }) → optional cleanup function.
  *
- * Rules: unknown route → #/login; not signed in → #/login; missing permission → #/dashboard.
+ * Rules: unknown route → #/login; not signed in → #/login; missing permission → home page.
+ * The home page depends on the role, so the app gives the router a `home()` resolver.
  */
 import { session } from './session.js';
 import { notify, handleError } from './notify.js';
 import { APP } from '../config/app-config.js';
 
 export const LOGIN_PATH = '/login';
-export const HOME_PATH = '/dashboard';
 
 let routes = [];
+let home = () => LOGIN_PATH;
 let resolveOutlet = () => null;
 let cleanup = null;
 let renderToken = 0;
@@ -22,6 +23,11 @@ export function navigate(path) {
   const target = `#${path}`;
   if (location.hash === target) render();
   else location.hash = target;
+}
+
+/** Goes to the signed-in user's home page (depends on the role). */
+export function navigateHome() {
+  navigate(home());
 }
 
 function redirect(path) {
@@ -64,7 +70,8 @@ async function render() {
   if (!route.public && !session.isAuthenticated) return redirect(LOGIN_PATH);
   if (route.permission && !session.can(route.permission)) {
     notify.info('No tiene permiso para ver esa página.');
-    return redirect(HOME_PATH);
+    const target = home();
+    return redirect(target === path ? LOGIN_PATH : target); // never loop on the same page
   }
 
   try {
@@ -94,10 +101,12 @@ async function render() {
 /**
  * @param {Array<object>} routeList
  * @param {(route: object, path: string) => HTMLElement} outletResolver where each view renders
+ * @param {() => string} homeResolver home path of the current user
  */
-export function startRouter(routeList, outletResolver) {
+export function startRouter(routeList, outletResolver, homeResolver) {
   routes = routeList.map((route) => ({ ...route, compiled: compile(route.path) }));
   resolveOutlet = outletResolver;
+  home = homeResolver;
   window.addEventListener('hashchange', render);
   render();
 }

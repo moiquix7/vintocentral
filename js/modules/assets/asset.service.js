@@ -2,6 +2,8 @@
  * Asset persistence: Firestore document + photos in Storage (assets/{assetId}/...).
  * Uploads happen before the document write; if the write fails, the new uploads are removed,
  * so Storage never keeps orphan photos.
+ * Every write also adds a change-history entry in the same batch (history.service.js), so the
+ * article and its history always agree.
  */
 import {
   db,
@@ -9,9 +11,7 @@ import {
   collection,
   doc,
   getDoc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
+  writeBatch,
   serverTimestamp,
   storageRef,
   uploadBytes,
@@ -28,6 +28,9 @@ import {
   sanitizeInventoryUpdate,
   validateInventoryUpdate,
 } from './asset.model.js';
+import { catalogLookups } from '../catalogs/catalog.store.js';
+import { addHistoryToBatch } from '../history/history.service.js';
+import { diffAssets } from '../history/history.model.js';
 
 function prepare(input) {
   const asset = sanitizeAsset(input);
@@ -40,6 +43,18 @@ function checkPhotoCount(count) {
   if (count > LIMITS.asset.photos) {
     throw new AppError(`Máximo ${LIMITS.asset.photos} fotos por artículo.`, { code: 'app/photo-limit' });
   }
+}
+
+/** Who is writing, for the history entry. */
+function author() {
+  return { by: session.user.uid, byName: session.profile?.displayName ?? '' };
+}
+
+/** Current stored article; a missing one is reported as a friendly error. */
+async function requireAsset(id) {
+  const current = await getAsset(id);
+  if (!current) throw new AppError('El artículo no existe o fue eliminado.', { code: 'app/not-found' });
+  return current;
 }
 
 async function uploadPhoto(assetId, blob) {
@@ -91,7 +106,8 @@ export async function createAsset(input, newPhotos = []) {
   try {
     photos = await uploadAll(reference.id, newPhotos);
     const uid = session.user.uid;
-    await setDoc(reference, {
+    const batch = writeBatch(db);
+    batch.set(reference, {
       ...asset,
       photos,
       createdAt: serverTimestamp(),
@@ -99,6 +115,8 @@ export async function createAsset(input, newPhotos = []) {
       updatedAt: serverTimestamp(),
       updatedBy: uid,
     });
+    addHistoryToBatch(batch, { assetId: reference.id, assetName: asset.name, action: 'create', changes: [], ...author() });
+    await batch.commit();
     return reference.id;
   } catch (error) {
     await removePhotos(photos);
@@ -117,13 +135,15 @@ export async function updateAsset(id, input, { keptPhotos = [], removedPhotos = 
   checkPhotoCount(kept.length + newPhotos.length);
   let uploaded = [];
   try {
+    const before = await requireAsset(id);
     uploaded = await uploadAll(id, newPhotos);
-    await updateDoc(doc(db, COLLECTIONS.assets, id), {
-      ...asset,
-      photos: [...kept, ...uploaded],
-      updatedAt: serverTimestamp(),
-      updatedBy: session.user.uid,
-    });
+    const data = { ...asset, photos: [...kept, ...uploaded] };
+    const changes = diffAssets(before, data, catalogLookups);
+    const batch = writeBatch(db);
+    batch.update(doc(db, COLLECTIONS.assets, id), { ...data, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+    // Saving without real changes is not worth a history entry.
+    if (changes.length) addHistoryToBatch(batch, { assetId: id, assetName: asset.name, action: 'update', changes, ...author() });
+    await batch.commit();
   } catch (error) {
     await removePhotos(uploaded);
     throw toAppError(error);
@@ -132,31 +152,43 @@ export async function updateAsset(id, input, { keptPhotos = [], removedPhotos = 
 }
 
 /**
- * Inventory-taking: saves location, condition and availability, and marks the article as verified now
- * (checkedAt). Nothing else in the document changes.
+ * Inventory-taking: saves location, condition, availability, its reason and the notes, and marks the
+ * article as verified now (checkedAt). Nothing else in the document changes.
  * @param {string} id
- * @param {{ locationId: string, condition: string, availability: string }} input
+ * @param {{ locationId: string, condition: string, availability: string, unavailableReason?: string, notes?: string }} input
  */
 export async function checkAsset(id, input) {
   const update = sanitizeInventoryUpdate(input);
   const errors = validateInventoryUpdate(update);
   if (Object.keys(errors).length) throw new ValidationError(errors);
   try {
-    await updateDoc(doc(db, COLLECTIONS.assets, id), {
+    const before = await requireAsset(id);
+    const batch = writeBatch(db);
+    batch.update(doc(db, COLLECTIONS.assets, id), {
       ...update,
       checkedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       updatedBy: session.user.uid,
     });
+    // Logged even without changes: "verified on this date by this person" is itself worth auditing.
+    const changes = diffAssets(before, update, catalogLookups);
+    addHistoryToBatch(batch, { assetId: id, assetName: before.name, action: 'check', changes, ...author() });
+    await batch.commit();
   } catch (error) {
     throw toAppError(error);
   }
 }
 
-/** Deletes the document first (so the asset disappears even if photo cleanup fails), then its photos. */
+/**
+ * Deletes the document first (so the asset disappears even if photo cleanup fails), then its photos.
+ * The history keeps a "deleted" entry with the article's name.
+ */
 export async function deleteAsset(asset) {
   try {
-    await deleteDoc(doc(db, COLLECTIONS.assets, asset.id));
+    const batch = writeBatch(db);
+    batch.delete(doc(db, COLLECTIONS.assets, asset.id));
+    addHistoryToBatch(batch, { assetId: asset.id, assetName: asset.name, action: 'delete', changes: [], ...author() });
+    await batch.commit();
   } catch (error) {
     throw toAppError(error);
   }

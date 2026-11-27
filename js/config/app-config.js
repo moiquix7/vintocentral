@@ -14,6 +14,16 @@ export const APP = Object.freeze({
   /** Single logo file used by the header, login and error screens (favicon: index.html). */
   logo: 'static/img/logo-iasd.png',
   loginBackground: 'static/img/login-bg.jpg',
+  /**
+   * System administrator shown on the login page ("¿No tiene cuenta?").
+   * email / phone are optional: an empty value is not shown. Phone in international format, e.g. '+591 70000000'.
+   */
+  adminContact: Object.freeze({
+    name: 'Luz Andrea Guachalla',
+    role: 'Secretaria de la iglesia · Administradora del sistema',
+    email: '',
+    phone: '',
+  }),
 });
 
 export const ROLES = Object.freeze({
@@ -23,8 +33,8 @@ export const ROLES = Object.freeze({
 });
 
 export const PERMISSIONS_BY_ROLE = Object.freeze({
-  admin: ['assets.read', 'assets.write', 'assets.delete', 'catalogs.write', 'reports.view', 'users.manage'],
-  editor: ['assets.read', 'assets.write', 'catalogs.write', 'reports.view'],
+  admin: ['dashboard.view', 'assets.read', 'assets.write', 'assets.delete', 'catalogs.write', 'reports.view', 'history.view', 'users.manage'],
+  editor: ['dashboard.view', 'assets.read', 'assets.write', 'catalogs.write', 'reports.view', 'history.view'],
   viewer: ['assets.read', 'reports.view'],
 });
 
@@ -48,14 +58,23 @@ export const AVAILABILITY = Object.freeze({
 
 export const DEFAULT_AVAILABILITY = 'available';
 
-/** Conditions that the dashboard flags as "needs attention". */
+/** Availability values that mean "not available": only these keep a reason (unavailableReason). */
+export const UNAVAILABLE = Object.freeze(['loaned', 'in_repair', 'missing']);
+
+/** The dashboard flags an article as "needs attention" when its condition or availability is one of these. */
 export const ATTENTION_CONDITIONS = Object.freeze(['poor', 'out_of_service']);
+export const ATTENTION_AVAILABILITY = Object.freeze(['in_repair', 'missing']);
+
+/** Connected users: heartbeat interval and how recent the last one must be to count as connected. */
+export const PRESENCE = Object.freeze({ heartbeatMs: 2 * 60 * 1000, onlineWindowMs: 5 * 60 * 1000 });
 
 export const LIMITS = Object.freeze({
   asset: {
     code: 30,
     name: 120,
     description: 500,
+    unavailableReason: 200,
+    notes: 500,
     tags: 10,
     tagLength: 30,
     photos: 4,
@@ -66,6 +85,8 @@ export const LIMITS = Object.freeze({
   user: { email: 254, displayName: 80, minPassword: 8, maxPassword: 128, usernameMin: 3, usernameMax: 30 },
   image: { maxInputBytes: 20 * 1024 * 1024, maxSide: 1600, quality: 0.8 },
   profileImage: { maxSide: 512, quality: 0.85 },
+  /** Change history: changes per entry, length of each described value, entries per page. */
+  history: { changes: 20, text: 200, pageSize: 100 },
 });
 
 export const COLLECTIONS = Object.freeze({
@@ -77,6 +98,8 @@ export const COLLECTIONS = Object.freeze({
   locations: 'locations',
   users: 'users',
   usernames: 'usernames',
+  presence: 'presence',
+  assetHistory: 'assetHistory',
 });
 
 /** Username format (must match validUsername() in firestore.rules). */

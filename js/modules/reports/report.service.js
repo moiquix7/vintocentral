@@ -4,7 +4,7 @@
  * square JPEG and drawn in the first column. A photo that fails never stops the report.
  */
 import { APP, AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
-import { availabilityOf } from '../assets/asset.model.js';
+import { availabilityOf, isUnavailable } from '../assets/asset.model.js';
 import { AppError } from '../../core/errors.js';
 import { loadScript } from '../../shared/script-loader.js';
 import { loadSquareThumbnail } from '../../shared/image.js';
@@ -28,6 +28,13 @@ async function loadPdfLibrary() {
   return jsPDF;
 }
 
+/** "Prestado — al grupo de jóvenes": the reason is added only while the article is not available. */
+function availabilityText(asset) {
+  const availability = availabilityOf(asset);
+  const reason = isUnavailable(availability) && typeof asset.unavailableReason === 'string' ? asset.unavailableReason : '';
+  return reason ? `${AVAILABILITY[availability]} — ${reason}` : AVAILABILITY[availability];
+}
+
 /** Table rows for the report (without the photo column). Pure helper. */
 export function buildReportRows(assets, lookups) {
   return assets.map((asset) => [
@@ -37,7 +44,7 @@ export function buildReportRows(assets, lookups) {
     lookups.categoryName(asset.categoryId),
     lookups.locationName(asset.locationId),
     CONDITIONS[asset.condition] ?? '—',
-    AVAILABILITY[availabilityOf(asset)],
+    availabilityText(asset),
     formatNumber(asset.quantity),
     formatCurrency(asset.value),
     formatCurrency((asset.value || 0) * (asset.quantity || 1)),
