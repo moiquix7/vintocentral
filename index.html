@@ -36,6 +36,19 @@
       <p class="boot">Cargando…</p>
     </div>
     <div id="toasts" class="toast-region" aria-live="polite"></div>
+    <script>
+      // Opened with a double click (file://): browsers block ES modules there, so js/main.js never
+      // loads. Explain how to open the app instead of leaving "Cargando…" on screen forever.
+      if (location.protocol === 'file:') {
+        document.getElementById('app').innerHTML =
+          '<div class="boot"><div class="card" style="max-width:520px;text-align:left">' +
+          '<h1>Abra la aplicación desde el servidor</h1>' +
+          '<p>Este archivo no se puede abrir con doble clic: el navegador bloquea sus módulos por seguridad.</p>' +
+          '<ol><li>En una terminal, dentro de la carpeta del proyecto, ejecute <code>npm start</code>.</li>' +
+          '<li>Abra <a href="http://localhost:8080">http://localhost:8080</a>.</li></ol></div></div>';
+        document.getElementById('app').removeAttribute('aria-busy');
+      }
+    </script>
     <noscript>
       <p class="boot">Esta aplicación necesita JavaScript. Actívelo en su navegador.</p>
     </noscript>

@@ -6,6 +6,9 @@
 export const APP = Object.freeze({
   name: 'Vinto Central - Inventario',
   churchName: 'Iglesia Adventista del Séptimo Día',
+  /** Login page heading (h1) and subtitle. */
+  churchFullName: 'Iglesia Adventista del Séptimo Día Vinto - Central',
+  systemName: 'Control de Inventario',
   locale: 'es-BO',
   currency: 'BOB',
   /** Single logo file used by the header, login and error screens (favicon: index.html). */

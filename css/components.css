@@ -141,6 +141,15 @@ select option { font-size: 1.05rem; padding: var(--space-2); background: var(--s
   .swatch { width: 48px; height: 48px; }
 }
 input:hover, select:hover, textarea:hover { border-color: var(--muted); }
+
+/* Control with an icon on the left and/or a small button on the right (form.js field()). */
+.input-addon { position: relative; }
+.input-addon > .icon { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.input-addon--icon > input { padding-left: 2.6rem; }
+.input-addon--action > input { padding-right: calc(var(--touch) + var(--space-1)); }
+.input-addon > .btn-icon { position: absolute; right: 0; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.input-addon > .btn-icon:hover { color: var(--text); }
+.input-addon:focus-within > .icon { color: var(--primary); }
 [aria-invalid="true"] { border-color: var(--danger); border-width: 2px; }
 
 .switch { appearance: none; width: 44px; height: 24px; min-height: 0; padding: 0; border-radius: 999px; background: var(--border); position: relative; cursor: pointer; flex: none; }

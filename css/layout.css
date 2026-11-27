@@ -87,11 +87,11 @@
   backdrop-filter: blur(6px);
   box-shadow: 0 10px 40px rgb(20 30 30 / 22%);
 }
-.login-card h1 { font-size: 1.3rem; text-wrap: balance; margin-bottom: var(--space-1); }
-.login-card form { text-align: left; margin-top: var(--space-4); }
+.login-card h1 { font-size: 1.3rem; line-height: 1.3; text-wrap: balance; margin-bottom: var(--space-2); }
+.login-subtitle { margin: 0; color: var(--primary); font-size: 1.1rem; font-weight: 650; letter-spacing: 0.02em; }
+.login-card form { text-align: left; margin-top: var(--space-5); }
 .login-logo { margin: 0 auto var(--space-3); object-fit: contain; }
-.login-appearance { text-align: left; margin-top: var(--space-4); border-top: 1px solid var(--border); padding-top: var(--space-3); }
-.login-appearance summary { cursor: pointer; color: var(--label); font-weight: 600; min-height: var(--touch); display: flex; align-items: center; }
+.login-forgot { justify-self: center; }
 
 @media (max-width: 960px) {
   .grid-3 { grid-template-columns: 1fr; }

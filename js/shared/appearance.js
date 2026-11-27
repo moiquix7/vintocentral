@@ -1,6 +1,6 @@
 /**
- * Appearance controls (theme, soft color palette, optionally focus mode and text size).
- * Reused by the login page and the user menu; every instance stays in sync through
+ * Appearance controls (theme, soft color palette, focus mode and text size).
+ * Reused by the user menu and Mi perfil; every instance stays in sync through
  * preferences.subscribePreferences().
  */
 import { h } from '../core/dom.js';
@@ -36,11 +36,8 @@ function radioGroup({ legend, name, options, value, className, renderLabel, onCh
   };
 }
 
-/**
- * @param {{ compact?: boolean }} [options] compact: only theme and palette (login page)
- * @returns {{ node: HTMLElement, dispose: () => void }}
- */
-export function appearanceControls({ compact = false } = {}) {
+/** @returns {{ node: HTMLElement, dispose: () => void }} */
+export function appearanceControls() {
   const id = ++groupCounter;
   const prefs = getPreferences();
 
@@ -67,20 +64,29 @@ export function appearanceControls({ compact = false } = {}) {
     onChange: (value) => updatePreferences({ palette: value }),
   });
 
-  const parts = [theme.node, palette.node];
-  let focus = null;
-  let scale = null;
+  const focus = h('input', { type: 'checkbox', class: 'switch', id: `focus-${id}`, checked: prefs.focusMode });
+  focus.addEventListener('change', () => updatePreferences({ focusMode: focus.checked }));
 
-  if (!compact) {
-    focus = h('input', { type: 'checkbox', class: 'switch', id: `focus-${id}`, checked: prefs.focusMode });
-    focus.addEventListener('change', () => updatePreferences({ focusMode: focus.checked }));
-    scale = h(
-      'select',
-      { id: `scale-${id}` },
-      Object.entries(FONT_SCALES).map(([value, label]) => h('option', { value, selected: value === prefs.fontScale }, label)),
-    );
-    scale.addEventListener('change', () => updatePreferences({ fontScale: scale.value }));
-    parts.push(
+  const scale = h(
+    'select',
+    { id: `scale-${id}` },
+    Object.entries(FONT_SCALES).map(([value, label]) => h('option', { value, selected: value === prefs.fontScale }, label)),
+  );
+  scale.addEventListener('change', () => updatePreferences({ fontScale: scale.value }));
+
+  const dispose = subscribePreferences((next) => {
+    theme.set(next.theme);
+    palette.set(next.palette);
+    focus.checked = next.focusMode;
+    scale.value = next.fontScale;
+  });
+
+  return {
+    node: h(
+      'div',
+      { class: 'appearance' },
+      theme.node,
+      palette.node,
       h(
         'div',
         { class: 'pref-row' },
@@ -88,15 +94,7 @@ export function appearanceControls({ compact = false } = {}) {
         h('p', { class: 'hint' }, 'Más espacio, sin animaciones, una columna.'),
       ),
       h('div', { class: 'pref-row' }, h('label', { for: `scale-${id}` }, 'Tamaño de letra'), scale),
-    );
-  }
-
-  const dispose = subscribePreferences((next) => {
-    theme.set(next.theme);
-    palette.set(next.palette);
-    if (focus) focus.checked = next.focusMode;
-    if (scale) scale.value = next.fontScale;
-  });
-
-  return { node: h('div', { class: `appearance${compact ? ' appearance--compact' : ''}` }, parts), dispose };
+    ),
+    dispose,
+  };
 }
