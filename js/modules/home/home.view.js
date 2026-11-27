@@ -68,7 +68,7 @@ function draw(container) {
       kpi('Artículos registrados', formatNumber(stats.totalRecords), { iconName: 'box' }),
       kpi('Unidades en total', formatNumber(stats.totalUnits)),
     ),
-    h('div', { class: 'grid-2' }, barList('Artículos por categoría (unidades)', stats.byType), barList('Artículos por ubicación (unidades)', stats.byLocation)),
+    h('div', { class: 'grid-2' }, barList('Artículos por tipo (unidades)', stats.byType), barList('Artículos por ubicación (unidades)', stats.byLocation)),
     recentSection(assets, canWrite),
   );
 }

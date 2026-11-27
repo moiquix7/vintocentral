@@ -11,7 +11,7 @@ technical names. Collections were never renamed, so no data migration is needed.
 | Interface (es) | Meaning | Collection / field |
 |----------------|---------|--------------------|
 | **Artículo** | a fixed asset (furniture, equipment, vehicle…) | `assets` |
-| **Categoría** | type of asset (Mobiliario, Equipo de sonido, Vehículos…) | `assetTypes` · `asset.typeId` |
+| **Tipo de artículo** | type of asset (Mobiliario, Equipo de sonido, Vehículos…) | `assetTypes` · `asset.typeId` |
 | **Departamento** | ministry responsible for the asset (Jóvenes, Música…) | `categories` · `asset.categoryId` (legacy name) |
 | **Ubicación** | physical place (Templo, Salón de jóvenes…) | `locations` · `asset.locationId` |
 | **Etiqueta** | free tag for classification / tracking | `asset.tags` |
@@ -30,6 +30,7 @@ The document id is the Firebase Authentication uid.
 | `role` | string | `admin` \| `editor` \| `viewer` |
 | `active` | bool | `false` blocks all access |
 | `photoUrl`, `photoPath` | string | optional profile photo (`profiles/{uid}/...`) |
+| `departmentId` | string | 0–64, optional — id from `categories` (the user's **Departamento**). Set by the admin in *Usuarios*; pre-fills the department when registering an article. Never self-edited |
 | `createdAt`, `updatedAt` | timestamp | server time |
 | `updatedBy` | string | uid of whoever wrote it |
 
@@ -61,7 +62,12 @@ Login lookup index: lets people sign in with a username instead of their email.
 | `code` | string | 0–30, optional inventory label (e.g. `SILLA-001`) |
 | `name` | string | 1–120, required |
 | `description` | string | 0–500 |
-| `typeId` | string | id from `assetTypes` — **Categoría**. Required by the form; optional in the rules (articles registered before categories existed) |
+| `brand` | string | 0–60, optional — Marca |
+| `model` | string | 0–60, optional — Modelo |
+| `serialNumber` | string | 0–60, optional — Nro. de serie |
+| `builtIn` | bool | optional — *Empotrado* (fixed to the building). Missing = `false` |
+| `insured` | bool | optional — *Asegurado*. Missing = `false` |
+| `typeId` | string | id from `assetTypes` — **Tipo de artículo**. Required by the form; optional in the rules (articles registered before asset types existed) |
 | `categoryId` | string | id from `categories` — shown in the UI as **Departamento**, required |
 | `locationId` | string | id from `locations`, required |
 | `condition` | string | `new` \| `good` \| `fair` \| `poor` \| `out_of_service` |
@@ -75,6 +81,13 @@ Login lookup index: lets people sign in with a username instead of their email.
 | `photos` | `{ path, url }[]` | max 4 |
 | `checkedAt` | timestamp | optional — last time the article was verified in an inventory-taking (`#/inventory`). The rules only accept the current server time when it changes |
 | `createdAt`, `createdBy`, `updatedAt`, `updatedBy` | | stamps |
+
+`brand`, `model`, `serialNumber`, `builtIn` and `insured` are optional in the rules (articles registered
+before they existed stay valid); the app always writes them.
+
+**No duplicates:** the app refuses to save an article whose name (ignoring case and accents) already
+exists **in the same location** (`findDuplicateAsset()` in `asset.model.js`, checked against the
+live asset list). The same name in another location is allowed; identical units go in `quantity`.
 
 ### Inventory-taking update
 
@@ -117,7 +130,7 @@ Heartbeat used by the dashboard to count connected users. Document id = the user
 - Connected = `lastSeen` within the last 5 minutes. Old documents are harmless (they just count as
   not connected) and are deleted on sign-out.
 
-## `categories/{id}` (UI: "Departamentos"), `assetTypes/{id}` (UI: "Categorías") and `locations/{id}`
+## `categories/{id}` (UI: "Departamentos"), `assetTypes/{id}` (UI: "Tipos de artículo") and `locations/{id}`
 
 The collection keeps its technical name `categories`; only the interface calls it *Departamento*
 (e.g. Jóvenes, Escuela Sabática, Música), so no data migration is needed.
@@ -146,7 +159,8 @@ Legacy: a short-lived version stored a single `leader` + `term` (`"2026"` / `"20
 still reads them as a one-item history, and the first edit replaces them with `leaders` (the old
 fields are deleted).
 
-A department, category or location cannot be deleted while an article uses it.
+A tipo de artículo, department or location cannot be deleted while an article uses it.
+Create/update: `admin`, `editor`. Delete: `admin` only (`catalogs.delete`; rules: `isAdmin()`).
 
 ## Storage
 
@@ -172,7 +186,8 @@ profiles/{uid}/{timestamp}-{random}.jpg
 | `assets.read` | ✔ | ✔ | ✔ |
 | `assets.write` | ✔ | ✔ | |
 | `assets.delete` | ✔ | | |
-| `catalogs.write` | ✔ | ✔ | |
+| `catalogs.write` ("Registros": create, edit) | ✔ | ✔ | |
+| `catalogs.delete` (delete records) | ✔ | | |
 | `reports.view` | ✔ | ✔ | ✔ |
 | `users.manage` | ✔ | | |
 | own profile (`#/profile`) | ✔ | ✔ | ✔ |

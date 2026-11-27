@@ -14,7 +14,7 @@ function yearSelect(selected, { label, withCurrent }) {
   return h(
     'select',
     { 'aria-label': label },
-    withCurrent ? h('option', { value: CURRENT, selected: value === CURRENT }, 'Actualidad (sigue)') : null,
+    withCurrent ? h('option', { value: CURRENT, selected: value === CURRENT }, 'Actualidad') : null,
     yearOptions().map((year) => h('option', { value: String(year), selected: String(year) === value }, String(year))),
   );
 }

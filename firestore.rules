@@ -42,7 +42,7 @@ service cloud.firestore {
             || (data.photoPath is string && data.photoPath.matches('profiles/' + uid + '/[^/]+')));
     }
     function validUser(data, uid) {
-      return data.keys().hasOnly(['email', 'username', 'displayName', 'role', 'active', 'photoUrl', 'photoPath',
+      return data.keys().hasOnly(['email', 'username', 'displayName', 'role', 'active', 'departmentId', 'photoUrl', 'photoPath',
                                   'createdAt', 'updatedAt', 'updatedBy'])
         && data.keys().hasAll(['email', 'displayName', 'role', 'active', 'createdAt', 'updatedAt', 'updatedBy'])
         && isText(data.email, 3, 254)
@@ -50,6 +50,7 @@ service cloud.firestore {
         && isText(data.displayName, 1, 80)
         && data.role in ['admin', 'editor', 'viewer']
         && data.active is bool
+        && (!('departmentId' in data) || isText(data.departmentId, 0, 64))
         && data.createdAt is timestamp
         && validPhoto(data, uid)
         && stamped(data);
@@ -73,7 +74,7 @@ service cloud.firestore {
         && usernameOwnedBy(request.resource.data.username, uid)
         && request.resource.data.createdAt == request.time;
       // Anyone: may edit their own profile fields (validSelfUpdate).
-      // Admin: may change others' role/active. An admin cannot demote or deactivate themselves.
+      // Admin: may change others' role/active/department (and their own department). An admin cannot demote or deactivate themselves.
       allow update: if validSelfUpdate(uid)
         || (isAdmin() && validUser(request.resource.data, uid)
             && request.resource.data.createdAt == resource.data.createdAt
@@ -102,10 +103,12 @@ service cloud.firestore {
     }
 
     // ---------- Assets ("Artículos") ----------
-    // typeId ("Categoría"), availability, unavailableReason, notes and checkedAt are optional: articles
+    // typeId ("Tipo de artículo"), availability, unavailableReason, notes and checkedAt are optional: articles
     // registered before they existed must still be editable. The app always writes typeId and availability.
+    // brand, model, serialNumber (Marca, Modelo, Nro. de serie), builtIn (Empotrado) and insured (Asegurado)
+    // are optional for the same reason.
     function validAsset(data) {
-      return data.keys().hasOnly(['code', 'name', 'description', 'typeId', 'categoryId', 'locationId', 'condition',
+      return data.keys().hasOnly(['code', 'name', 'description', 'brand', 'model', 'serialNumber', 'builtIn', 'insured', 'typeId', 'categoryId', 'locationId', 'condition',
                                   'availability', 'unavailableReason', 'notes',
                                   'tags', 'acquisitionDate', 'value', 'quantity', 'photos', 'checkedAt',
                                   'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
@@ -115,6 +118,11 @@ service cloud.firestore {
         && isText(data.code, 0, 30)
         && isText(data.name, 1, 120)
         && isText(data.description, 0, 500)
+        && (!('brand' in data) || isText(data.brand, 0, 60))
+        && (!('model' in data) || isText(data.model, 0, 60))
+        && (!('serialNumber' in data) || isText(data.serialNumber, 0, 60))
+        && (!('builtIn' in data) || data.builtIn is bool)
+        && (!('insured' in data) || data.insured is bool)
         && (!('typeId' in data) || isText(data.typeId, 1, 64))
         && isText(data.categoryId, 1, 64)
         && isText(data.locationId, 1, 64)
@@ -174,7 +182,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ---------- Catalogs: locations and assetTypes = "Categorías" (validCatalog),
+    // ---------- Catalogs ("Registros"; delete: admin only): locations and assetTypes = "Tipos de artículo" (validCatalog),
     //            categories = "Departamentos" (validDepartment) ----------
     function validCatalog(data) {
       return data.keys().hasOnly(['name', 'description', 'createdAt', 'updatedAt', 'updatedBy'])
@@ -199,21 +207,21 @@ service cloud.firestore {
       allow read: if canRead();
       allow create: if canEdit() && validDepartment(request.resource.data) && request.resource.data.createdAt == request.time;
       allow update: if canEdit() && validDepartment(request.resource.data) && request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if canEdit();
+      allow delete: if isAdmin();
     }
 
     match /assetTypes/{id} {
       allow read: if canRead();
       allow create: if canEdit() && validCatalog(request.resource.data) && request.resource.data.createdAt == request.time;
       allow update: if canEdit() && validCatalog(request.resource.data) && request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if canEdit();
+      allow delete: if isAdmin();
     }
 
     match /locations/{id} {
       allow read: if canRead();
       allow create: if canEdit() && validCatalog(request.resource.data) && request.resource.data.createdAt == request.time;
       allow update: if canEdit() && validCatalog(request.resource.data) && request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if canEdit();
+      allow delete: if isAdmin();
     }
 
     // ---------- Presence (connected users, read by the dashboard) ----------

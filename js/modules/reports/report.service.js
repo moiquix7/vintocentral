@@ -35,11 +35,27 @@ function availabilityText(asset) {
   return reason ? `${AVAILABILITY[availability]} — ${reason}` : AVAILABILITY[availability];
 }
 
+/**
+ * Marca, modelo and nro. de serie in one cell, one labelled line each (only those present).
+ * "—" when the article has none (e.g. articles registered before these fields existed).
+ */
+export function equipmentText(asset) {
+  const lines = [
+    ['Marca', asset.brand],
+    ['Modelo', asset.model],
+    ['Serie', asset.serialNumber],
+  ]
+    .filter(([, value]) => typeof value === 'string' && value.trim())
+    .map(([label, value]) => `${label}: ${value.trim()}`);
+  return lines.length ? lines.join('\n') : '—';
+}
+
 /** Table rows for the report (without the photo column). Pure helper. */
 export function buildReportRows(assets, lookups) {
   return assets.map((asset) => [
     asset.code || '—',
     asset.name,
+    equipmentText(asset),
     lookups.typeName(asset.typeId),
     lookups.categoryName(asset.categoryId),
     lookups.locationName(asset.locationId),
@@ -113,7 +129,7 @@ export async function generateInventoryPdf({ assets, lookups, filterSummary, gen
   );
   if (conditions) pdf.text(`Por estado (unidades) — ${conditions}`, 14, 46);
 
-  const head = ['Código', 'Nombre', 'Categoría', 'Departamento', 'Ubicación', 'Estado', 'Disponib.', 'Cant.', 'Valor unit.', 'Valor total'];
+  const head = ['Código', 'Nombre', 'Marca / Modelo / Serie', 'Tipo de artículo', 'Departamento', 'Ubicación', 'Estado', 'Disponib.', 'Cant.', 'Valor unit.', 'Valor total'];
   let body = buildReportRows(assets, lookups);
   const offset = includePhotos ? 1 : 0;
   if (includePhotos) {
@@ -137,9 +153,10 @@ export async function generateInventoryPdf({ assets, lookups, filterSummary, gen
     alternateRowStyles: { fillColor: COLORS.stripe },
     columnStyles: {
       ...(includePhotos ? { 0: { cellWidth: PHOTO.columnMm, halign: 'center' } } : {}),
-      [7 + offset]: right,
+      [2 + offset]: { cellWidth: 34 },
       [8 + offset]: right,
       [9 + offset]: right,
+      [10 + offset]: right,
     },
     margin: { left: 14, right: 14, bottom: 16 },
     didDrawCell: (data) => {

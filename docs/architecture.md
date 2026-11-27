@@ -48,12 +48,12 @@ Rules that keep **high cohesion / low coupling**:
 | `history` | `#/history` "Historial" (recent changes of all articles) + a section in the article detail | `history.view` (admin, editor) |
 | `assets` | `#/assets`, `#/assets/new`, `#/assets/:id`, `#/assets/:id/edit` | read / `assets.write` |
 | `inventory` | `#/inventory` — inventory-taking grid (see below) | `assets.write` |
-| `catalogs` | `#/catalogs` "Catálogos": categories (`assetTypes`), departments (stored as `categories`, with leader history) and locations | `catalogs.write` |
+| `catalogs` | `#/records` "Registros" (hub) and `#/records/:kind` — tipos de artículo (`assetTypes`), departments (stored as `categories`, with leader history) and locations (see below) | `catalogs.write`; delete: `catalogs.delete` (admin) |
 | `reports` | `#/reports` (PDF, optionally with the first photo of each asset) | `reports.view` |
 | `users` | `#/users` | `users.manage` |
 | `layout` | application shell (header, navigation, preferences) | — |
 
-Interface wording follows the CLAUDE.md terminology: **Artículo** (never "bien"), **Categoría**,
+Interface wording follows the CLAUDE.md terminology: **Artículo** (never "bien"), **Tipo de artículo** (never "categoría"),
 **Departamento**, **Ubicación**, **Etiqueta**, **Usuario**. The mapping to collections and fields is
 in `docs/data-model.md`.
 
@@ -61,7 +61,7 @@ in `docs/data-model.md`.
 
 For every signed-in user (viewers land here after sign-in; the logo also leads here).
 
-- Indicators: articles registered, units, and bar lists by Categoría and by Ubicación.
+- Indicators: articles registered, units, and bar lists by Tipo de artículo and by Ubicación.
 - **Últimos movimientos**: the last 10 articles added or updated, drawn as a vertical timeline in
   **chronological order** (oldest of the ten first, the most recent at the bottom, marked "Lo más
   reciente"). Each point: date and time, what happened (*Registrado*, *Modificado* or *Verificado
@@ -78,8 +78,11 @@ Only **admin** and **editor** (`dashboard.view`); it is their landing page after
 - KPIs: articles, units, estimated value, **needs attention** (condition *Malo* / *Fuera de
   servicio*, or availability *En reparación* / *Extraviado*) and **users connected now**.
 - Charts: 100 % segmented bars for *Estado* and *Disponibilidad* (legend with number and %, so
-  identity is never color alone) and horizontal bar lists by Categoría, Departamento and Ubicación
+  identity is never color alone) and horizontal bar lists (units) by Tipo de artículo and Ubicación
   (each bar has a tooltip with units and share).
+- **Artículos por departamento** card: **every** department (also those with 0 articles), with the
+  number of articles registered in each, as horizontal bars (largest first; "Sin departamento" is
+  added only when some article has none).
 - Quick links to the features the role may use (same permission list as the navigation).
 - Pure computations live in `dashboard.stats.js` and `presence.model.js` (tested).
 
@@ -111,6 +114,30 @@ Audit trail of every change to an article, for **admin** and **editor** (`histor
   `history.service.js`.
 - Articles changed before this feature existed simply have no earlier entries.
 
+## Articles (`#/assets`, "Artículos")
+
+- Table columns: photo, Nombre (link to the detail), Tipo de artículo, Departamento, Ubicación,
+  Estado, Disponibilidad, Cantidad, Valor unitario and a last **Acciones** column: **Editar**
+  (`assets.write`) and **Eliminar** (`assets.delete`, admin only — same confirmation as the detail).
+  Viewers see no Acciones column.
+- Search (also by marca, modelo and nro. de serie), filters and sorting as before.
+
+### Registrar artículo (`#/assets/new`)
+
+- Fields: Código, Nombre, Descripción, Marca, Modelo, Nro. de serie, Empotrado (checkbox),
+  Asegurado (checkbox), Tipo de artículo, Departamento, Ubicación, Etiquetas, Estado,
+  Disponibilidad, Motivo (only when not available), Observaciones, Cantidad, Valor, Fecha de
+  adquisición and up to 4 photos (gallery or camera, compressed before upload).
+- **Departamento** is pre-filled with the signed-in user's department (`users.departmentId`);
+  anyone who can register may change it.
+- **Similar names**: while typing the name, a list shows up to 6 existing articles whose name
+  contains the typed words (name · ubicación · código). Choosing one shows a notice with links to
+  that article (Ver / Editar) so the user can confirm whether it is already registered.
+- **Duplicates**: saving is refused when an article with the same name already exists in the same
+  location (message under the name field). Also applies when editing.
+- After registering, the user returns to the article list (`#/assets`). Editing still returns to
+  the detail.
+
 ## Inventory-taking (`#/inventory`)
 
 A grid to walk through the church and verify every article:
@@ -118,7 +145,7 @@ A grid to walk through the church and verify every article:
 - **Round start date** ("Inventario iniciado el", default today, remembered per browser): an article
   counts as *verified* when its `checkedAt` is on or after that date. A progress bar shows
   "N de M verificados".
-- Columns: Artículo, Categoría, Departamento, **Ubicación**, **Estado**, **Disponibilidad**,
+- Columns: Artículo, Tipo de artículo, Departamento, **Ubicación**, **Estado**, **Disponibilidad**,
   **Motivo / Observaciones**, **Verificado**.
 - **Automatic save**: changing a dropdown saves at once; the two text fields save when they lose
   focus (or Enter). Every save writes only the inventory fields and stamps `checkedAt`
@@ -137,6 +164,27 @@ A grid to walk through the church and verify every article:
 - Small screens and focus mode: each row becomes a card (same `responsive-table` pattern); on
   tablets the table scrolls horizontally inside its card instead of overflowing the page.
 
+## Records (`#/records`, "Registros")
+
+Admin and editor only (`catalogs.write`). Replaces the former "Catálogos" page (`#/catalogs` no
+longer exists; like any unknown route it goes to `#/login`, which forwards a signed-in user home).
+
+- **Hub** `#/records` (`records.view.js`): three large buttons, one per record type —
+  **Tipo de artículo**, **Departamento**, **Ubicación** — each with an icon, a one-line hint and
+  how many records it has.
+- **List page** `#/records/:kind` (`catalog-list.view.js`), `kind` = `asset-types` | `departments` |
+  `locations` (defined once in `catalog-kinds.js`; an unknown kind goes back to the hub):
+  - Header with "← Registros" and **Agregar** (opens the same form in a dialog as **Editar**).
+  - **Search** by name, description and (departments) leader names — accent- and case-insensitive.
+  - **Filters**: *Uso* (todos / en uso / sin uso) and, for departments, *Líder* (con líder actual /
+    sin líder actual).
+  - **Sort**: nombre A → Z / Z → A, más / menos artículos, modificados recientemente.
+  - Each record shows how many articles use it (counted from the in-memory asset store, no extra
+    reads).
+  - **Eliminar** only with `catalogs.delete` (admin); the rules enforce it too. A record that is
+    still used by an article cannot be deleted.
+- Filtering and sorting are pure functions in `catalog-filter.js` (tested).
+
 ## Routing
 
 Hash routing (`#/path`) is used so the app works on **GitHub Pages** (which cannot rewrite URLs) and on
@@ -154,7 +202,7 @@ Firebase Hosting alike.
 | Role | Can do |
 |------|--------|
 | `admin` | Everything, including deleting assets and managing users. |
-| `editor` | Dashboard, register and update assets, inventory-taking, catalogs, reports, change history. |
+| `editor` | Dashboard, register and update assets, inventory-taking, create and edit records (no delete), reports, change history. |
 | `viewer` | Home page, view assets and reports (no dashboard, no history). |
 
 The role lives in `users/{uid}` (Firestore). The UI hides what a role cannot do, and the **security
@@ -171,6 +219,11 @@ rules enforce it** (`firestore.rules`, `storage.rules`) — the UI is never the 
 ## PDF report with photos
 
 - jsPDF + AutoTable are loaded from cdnjs only when a report is generated.
+- Columns (A4 landscape): [Foto], Código, Nombre, **Marca / Modelo / Serie**, Tipo de artículo,
+  Departamento, Ubicación, Estado, Disponibilidad, Cantidad, Valor unitario, Valor total.
+  Marca, modelo and nro. de serie share one column, one labelled line each ("Marca: Yamaha",
+  "Modelo: MG10XU", "Serie: 12345"), only the ones the article has; "—" when it has none.
+  Three separate columns would not fit legibly next to the others.
 - With "Incluir fotos" checked, the first photo of each asset is downloaded (`fetch`, 4 at a time,
   progress shown on the button), center-cropped to a 240 px square JPEG and drawn in the first
   column. Rows are taller so the photo fits.
@@ -222,7 +275,13 @@ Photos are resized in the browser (max 1600 px, JPEG) before upload.
   labels, inline errors, skip link, `aria-live` notifications, focus moved to the page title on every
   navigation.
 - Dropdowns (`<select>`): full width, tall, 2 px border, large text and a chevron in the palette
-  color; the user menu is wide with tall rows.
+  color; the user menu is wide with tall rows. The chosen text stays on **one line** (never wraps
+  or spills over the border); option labels are kept short (e.g. "Actualidad", not
+  "Actualidad (sigue)") so they fit.
+- Forms placed inside narrow cards adapt to the **card width**, not the screen width (CSS container
+  queries). Example: the department leader editor shows Desde / Hasta / Quitar in one row only
+  when the card is wide; otherwise Desde and Hasta share a row and Quitar goes below; in very
+  narrow cards everything stacks.
 - The **open list** uses the browser's customizable select (`appearance: base-select`, Chrome/Edge
   135+) so it takes the palette: border and checked option in `--primary`, hover in
   `--primary-soft`, 48 px rows. It is wrapped in `@supports`, so browsers without it (Firefox,

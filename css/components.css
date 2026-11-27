@@ -60,6 +60,8 @@ select {
   -webkit-appearance: none; appearance: none;
   min-height: max(var(--touch), 52px);
   padding: var(--space-2) 3rem var(--space-2) var(--space-4);
+  /* The chosen text stays on one line inside the control, whatever its width. */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
   border: 2px solid var(--border);
   border-radius: var(--radius);
   background-color: var(--surface);
@@ -268,23 +270,34 @@ input:hover, select:hover, textarea:hover { border-color: var(--muted); }
 .leader-history ol { margin: var(--space-1) 0 0; padding-left: 1.4rem; }
 .field-label { font-weight: 600; color: var(--label); }
 
-/* Leader history editor: name on its own line, then Desde / Hasta / Quitar. */
-.leaders-editor { display: grid; gap: var(--space-3); justify-items: start; text-align: left; }
+/*
+ * Leader history editor. It lives in a card whose width does not follow the screen (three cards
+ * side by side on desktop, one on phones), so the row adapts to the editor's own width:
+ *   wide   (≥ 460px): Nombre / Desde | Hasta | Quitar
+ *   normal (default): Nombre / Desde | Hasta / Quitar (right-aligned)
+ *   narrow (< 260px): everything stacked
+ */
+.leaders-editor { display: grid; gap: var(--space-3); justify-items: start; text-align: left; container-type: inline-size; }
 .leader-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); width: 100%; }
 .leader-row {
   display: grid; gap: var(--space-2) var(--space-3);
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: end;
   padding: var(--space-3); border: 1px solid var(--border); border-left: 4px solid var(--accent);
   border-radius: var(--radius-small); background: var(--surface-alt);
 }
-.leader-row label { display: grid; gap: var(--space-1); font-weight: 600; color: var(--label); }
+.leader-row label { display: grid; gap: var(--space-1); min-width: 0; font-weight: 600; color: var(--label); }
 .leader-row label span { font-size: 0.9rem; }
-.leader-title, .leader-name { grid-column: 1 / -1; }
+.leader-title, .leader-name, .leader-row .btn { grid-column: 1 / -1; }
+.leader-row .btn { justify-self: end; }
 .leader-title { font-weight: 700; color: var(--primary); }
-@media (max-width: 480px) {
-  .leader-row { grid-template-columns: 1fr 1fr; }
-  .leader-row .btn { grid-column: 1 / -1; }
+@container (min-width: 460px) {
+  .leader-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+  .leader-row .btn { grid-column: auto; }
+}
+@container (max-width: 259px) {
+  .leader-row { grid-template-columns: minmax(0, 1fr); }
+  .leader-row .btn { justify-self: stretch; }
 }
 .item-list li { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
 
@@ -414,3 +427,52 @@ input:hover, select:hover, textarea:hover { border-color: var(--muted); }
 .badge--activity-updated { background: var(--info-soft); color: var(--primary); }
 .badge--activity-checked { background: var(--surface-alt); color: var(--label); border: 1px solid var(--border); }
 .badge--latest { background: var(--primary); color: var(--on-primary); }
+
+/* "Registros" hub: three large, calm buttons (one per record type). */
+.record-hub { list-style: none; padding: 0; margin: var(--space-4) 0 0; display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.record-tile {
+  display: grid; gap: var(--space-2); align-content: start; height: 100%;
+  min-height: 160px; padding: var(--space-5);
+  border: 2px solid var(--border); border-radius: var(--radius); background: var(--surface);
+  color: var(--text); text-decoration: none; box-shadow: var(--shadow);
+  transition: border-color var(--motion), background-color var(--motion);
+}
+.record-tile:hover { border-color: var(--primary); background: var(--primary-soft); }
+.record-tile > .icon { width: 2.2em; height: 2.2em; color: var(--primary); }
+.record-tile-title { font-size: 1.3rem; color: var(--label); }
+.record-tile-hint { color: var(--muted); }
+.record-tile-count { font-weight: 650; color: var(--primary); }
+
+/* "Registros" list pages */
+.back-link { display: inline-flex; align-items: center; gap: var(--space-1); padding-left: 0; text-decoration: none; }
+.record-list { margin-top: 0; }
+.record-list li:first-child { border-top: 0; }
+.record-info { display: grid; gap: var(--space-1); justify-items: start; min-width: 0; }
+.usage-chip { padding: 0.1rem 0.6rem; border-radius: 999px; background: var(--primary-soft); color: var(--label); font-weight: 650; }
+.usage-chip--none { background: var(--surface-alt); color: var(--muted); }
+
+/* Articles table: last column with Editar / Eliminar. */
+.col-actions { white-space: nowrap; }
+.col-actions .button-row { flex-wrap: nowrap; gap: var(--space-2); }
+
+/* Registrar artículo: on/off fields (Empotrado, Asegurado). */
+.toggle-field { min-height: var(--touch); font-weight: 600; color: var(--label); }
+
+/* Registrar artículo: existing articles with a similar name. */
+.similar {
+  display: grid; gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border); border-left: 4px solid var(--warn);
+  border-radius: var(--radius-small); background: var(--warn-soft);
+}
+.similar-title { margin: 0; font-weight: 650; color: var(--text); }
+.similar-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1); }
+.similar-item {
+  display: grid; gap: 2px; width: 100%; min-height: var(--touch); text-align: left;
+  padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-small);
+  background: var(--surface); color: var(--text); font: inherit; cursor: pointer;
+}
+.similar-item:hover, .similar-item:focus-visible { border-color: var(--primary); background: var(--primary-soft); }
+.similar-chosen { display: grid; gap: var(--space-2); justify-items: start; padding-top: var(--space-2); border-top: 1px dashed var(--border); }
+.similar-chosen p { margin: 0; }
+.details--compact { margin: 0; }

@@ -3,7 +3,7 @@
  * The field list and limits must match `validAsset()` in firestore.rules.
  */
 import { AVAILABILITY, CONDITIONS, DEFAULT_AVAILABILITY, LIMITS, UNAVAILABLE } from '../../config/app-config.js';
-import { cleanText, cleanMultiline, toNumber, isIsoDate } from '../../shared/validation.js';
+import { cleanText, cleanMultiline, foldText, toNumber, isIsoDate } from '../../shared/validation.js';
 
 const L = LIMITS.asset;
 
@@ -12,6 +12,11 @@ export const ASSET_FIELDS = Object.freeze([
   'code',
   'name',
   'description',
+  'brand',
+  'model',
+  'serialNumber',
+  'builtIn',
+  'insured',
   'typeId',
   'categoryId',
   'locationId',
@@ -63,6 +68,11 @@ export function sanitizeAsset(input = {}) {
     code: cleanText(input.code, L.code),
     name: cleanText(input.name, L.name),
     description: cleanMultiline(input.description, L.description),
+    brand: cleanText(input.brand, L.brand),
+    model: cleanText(input.model, L.model),
+    serialNumber: cleanText(input.serialNumber, L.serialNumber),
+    builtIn: input.builtIn === true,
+    insured: input.insured === true,
     typeId: cleanText(input.typeId, 64),
     categoryId: cleanText(input.categoryId, 64),
     locationId: cleanText(input.locationId, 64),
@@ -82,7 +92,7 @@ export function sanitizeAsset(input = {}) {
 export function validateAsset(asset) {
   const errors = {};
   if (!asset.name) errors.name = 'Escriba el nombre del artículo.';
-  if (!asset.typeId) errors.typeId = 'Elija una categoría.';
+  if (!asset.typeId) errors.typeId = 'Elija un tipo de artículo.';
   if (!asset.categoryId) errors.categoryId = 'Elija un departamento.';
   Object.assign(errors, validateInventoryUpdate(asset));
   if (!Number.isInteger(asset.quantity) || asset.quantity < 1 || asset.quantity > L.maxQuantity) {
@@ -97,6 +107,44 @@ export function validateAsset(asset) {
     errors.acquisitionDate = 'La fecha no puede ser futura.';
   }
   return errors;
+}
+
+/** Comparable form of an article name: trimmed, single spaces, no case and no accents. */
+function nameKey(name) {
+  return foldText(name).replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Existing article with the same name (ignoring case and accents) in the same location, or null.
+ * The same name in another location is allowed (identical units go in `quantity`).
+ * @param {Array<object>} assets current articles
+ * @param {{ name: string, locationId: string }} candidate
+ * @param {string|null} [excludeId] the article being edited
+ */
+export function findDuplicateAsset(assets, { name, locationId }, excludeId = null) {
+  const key = nameKey(name);
+  if (!key || !locationId) return null;
+  return assets.find((asset) => asset.id !== excludeId && asset.locationId === locationId && nameKey(asset.name) === key) ?? null;
+}
+
+/**
+ * Articles whose name contains every typed word (ignoring case and accents), exact matches first,
+ * then A → Z. Used to suggest existing articles while typing a name.
+ * @param {Array<object>} assets
+ * @param {string} text what the user typed
+ * @param {{ limit?: number, excludeId?: string|null, minLength?: number }} [options]
+ */
+export function findSimilarAssets(assets, text, { limit = 6, excludeId = null, minLength = 2 } = {}) {
+  const key = nameKey(text);
+  if (key.length < minLength) return [];
+  const words = key.split(' ');
+  return assets
+    .filter((asset) => asset.id !== excludeId)
+    .map((asset) => ({ asset, name: nameKey(asset.name) }))
+    .filter(({ name }) => words.every((word) => name.includes(word)))
+    .sort((a, b) => Number(b.name === key) - Number(a.name === key) || a.name.localeCompare(b.name))
+    .slice(0, limit)
+    .map(({ asset }) => asset);
 }
 
 /** Availability of a stored article; old articles without the field count as available. */

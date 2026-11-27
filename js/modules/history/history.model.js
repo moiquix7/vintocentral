@@ -21,7 +21,12 @@ export const FIELD_LABELS = Object.freeze({
   name: 'Nombre',
   code: 'Código',
   description: 'Descripción',
-  typeId: 'Categoría',
+  brand: 'Marca',
+  model: 'Modelo',
+  serialNumber: 'Nro. de serie',
+  builtIn: 'Empotrado',
+  insured: 'Asegurado',
+  typeId: 'Tipo de artículo',
   categoryId: 'Departamento',
   locationId: 'Ubicación',
   tags: 'Etiquetas',
@@ -46,6 +51,7 @@ function rawKey(field, value) {
   if (field === 'photos') return Array.isArray(value) ? value.map((photo) => photo?.path ?? '').join('|') : '';
   if (field === 'tags') return Array.isArray(value) ? value.join('|') : '';
   if (field === 'availability') return availabilityKey(value);
+  if (field === 'builtIn' || field === 'insured') return value === true ? 'true' : 'false';
   return value === undefined || value === null ? '' : String(value);
 }
 
@@ -61,6 +67,9 @@ export function describeValue(field, value, lookups) {
       return value ? lookups.categoryName(value) : '';
     case 'locationId':
       return value ? lookups.locationName(value) : '';
+    case 'builtIn':
+    case 'insured':
+      return value === true ? 'Sí' : 'No';
     case 'condition':
       return CONDITIONS[value] ?? '';
     case 'availability':

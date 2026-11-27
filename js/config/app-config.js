@@ -33,7 +33,7 @@ export const ROLES = Object.freeze({
 });
 
 export const PERMISSIONS_BY_ROLE = Object.freeze({
-  admin: ['dashboard.view', 'assets.read', 'assets.write', 'assets.delete', 'catalogs.write', 'reports.view', 'history.view', 'users.manage'],
+  admin: ['dashboard.view', 'assets.read', 'assets.write', 'assets.delete', 'catalogs.write', 'catalogs.delete', 'reports.view', 'history.view', 'users.manage'],
   editor: ['dashboard.view', 'assets.read', 'assets.write', 'catalogs.write', 'reports.view', 'history.view'],
   viewer: ['assets.read', 'reports.view'],
 });
@@ -73,6 +73,9 @@ export const LIMITS = Object.freeze({
     code: 30,
     name: 120,
     description: 500,
+    brand: 60,
+    model: 60,
+    serialNumber: 60,
     unavailableReason: 200,
     notes: 500,
     tags: 10,
@@ -93,7 +96,7 @@ export const COLLECTIONS = Object.freeze({
   assets: 'assets',
   /** UI "Departamentos" (technical name kept to avoid a data migration). */
   categories: 'categories',
-  /** UI "Categorías": type of asset (furniture, equipment, vehicles…). */
+  /** UI "Tipos de artículo": type of asset (furniture, equipment, vehicles…). */
   assetTypes: 'assetTypes',
   locations: 'locations',
   users: 'users',

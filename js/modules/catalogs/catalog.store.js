@@ -1,6 +1,6 @@
 /**
  * Live catalogs, plus id → name lookups used across modules.
- * categoryStore = "Departamentos" (collection `categories`), assetTypeStore = "Categorías" (`assetTypes`).
+ * categoryStore = "Departamentos" (collection `categories`), assetTypeStore = "Tipos de artículo" (`assetTypes`).
  */
 import { createCollectionStore } from '../../core/collection-store.js';
 import { COLLECTIONS } from '../../config/app-config.js';
@@ -17,7 +17,7 @@ export function catalogsReady() {
 }
 
 export const catalogLookups = Object.freeze({
-  typeName: (id) => assetTypeStore.getById(id)?.name ?? 'Sin categoría',
+  typeName: (id) => assetTypeStore.getById(id)?.name ?? 'Sin tipo',
   categoryName: (id) => categoryStore.getById(id)?.name ?? 'Sin departamento',
   locationName: (id) => locationStore.getById(id)?.name ?? 'Sin ubicación',
 });

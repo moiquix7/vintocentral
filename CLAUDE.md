@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Inventory Management System
+Inventory Management System Church
 
 
 ## Role Agent:
@@ -76,9 +76,11 @@ HTML, JavaScript,css, firebase, firebase authentication, firebase firestore, fir
 - The home page will provide an overview of the inventory status, including key indicators such as total assets, assets by category, and assets by location. 
 - DISPLAY in a chronological graph order (eye-friendly) the last 10 assets that have been added or updated, with links to view their details and edit them (if the user has the appropriate permissions). 
 
+
+
 ### DASHBOARD PAGE
 - the dashboard page is available just to administrators and editors, and will provide key indicators on the inventory status, such as total assets, assets by category, assets by department and assets by location, also will show the number of users active/connected to the system, and the number of assets that need attention (e.g., assets that are in poor condition or need maintenance).
-- use charts and graphs to visualize the data, and provide links to the different features of the application based on the user's role and permissions. (EYE-friendly, soft colors, minimalist design, and ADHD-friendly mode.)
+- Display a card where the user can see all departments and the number of assets that own every department in a graph chart horizontal.
 
 ### INVENTORY-TAKING PAGE
 - The inventory-taking page will allow users to view and update the status of assets in a grid/table format, with columns for asset name, category, department, location, condition, and availability.
@@ -86,13 +88,39 @@ HTML, JavaScript,css, firebase, firebase authentication, firebase firestore, fir
 - The page will also provide a progress indicator to show the number of assets that have been verified and updated, and will allow users to filter and sort the assets by category, department, location, condition, and availability
 - also allow users let know the reason why the assets is not available, and provide a field to enter comments or notes about the asset's status.
 
+### RECORDS PAGE
+1. The records page will be available just administrators and editors.
+2.display three options buttons with navegation to the following: pages:
+  2.1. "Tipo de Articulo" (asset type): open a page that displays a list of asset types, with options to create, edit, and delete asset types (admin only).
+  2.2 "Departamento" (department): open a page that displays a list of departments, with options to create, edit, and delete departments (admin only).
+  2.3 "Ubicacion" (location): open a page that displays a list of locations, with options to create, edit, and delete locations (admin only).
+ 3. the user will be able to navigate to the different pages based on their role and permissions, and will be able to view and manage the records for each asset type, department, and location.
+4. every page will have a search bar to allow users to search for specific records by name or other attributes, and will provide options to filter and sort the records based on different criteria.
+
+### ARTICULOS PAGE
+- The articulos page will allow users to view and manage the fixed assets of the church, with options to create, edit, and delete assets (admin and editors only).
+- The page will display a list of assets in a grid/table format, with columns for asset name, category, department, location, condition, and availability.
+- The grid will have the last column  with buttons to edit and delete the asset (admin and editors only), and will provide options to filter and sort the assets by category, department, location, condition, and availability.
+- The user will be able to click on an asset to view its details, including its name, description, category, department, location, condition, availability, and any associated images or documents.
+
+
+#### REGISTRAR ARTICULO
+1. The registrar articulo page will allow users to create a new asset by entering its name, description, category, department, location, condition, availability, and any associated images or documents.
+2. The page will populate the department by default with the department of the user who is creating the asset, but will allow users to change it if they have the appropriate permissions.
+3. The page will provide options to upload images or documents associated with the asset, and will automatically compress the images before uploading them to Firebase Storage.
+4. The fields will have validation rules to ensure that the data entered is valid and complete, and will provide error messages if any required fields are missing or invalid.
+5. The page will provide a save button to submit the new asset to the database, and will redirect the user back to the articulos page after the asset has been successfully created.
+6. when the user is typing the name of the asset, the system will display a dropdown list of possible matches based on the existing assets in the database. and will be able to select one of the matches to confirm if exists.
+7. the save event will be controlled, and if the asset already exists, the system will display a message to let the user know that the asset already exists and will not allow them to create a duplicate record.
+8. Fields to fill: Code, name, description,category (tipo articulo),brand,model,Nro Serie,"Empotrado" (checkbox),"Asegurado"(checkbox),department, location, condition, availability, reason for unavailability (if applicable), tags (optional), and up to 4 images (from gallery or camera).
+
 
   
 ## THERMINOLOGY AND GLOSSARY
 - "Articulo": any fixed asset of the church, such as furniture, equipment, vehicles, etc.  
 - "Departamento": a department or ministry of the church that is responsible for managing a specific category of assets.
 - "Ubicacion": the physical location of an asset, such as a room, building, or outdoor area.
-- "Categoria": a category or type of asset, such as furniture, equipment, vehicles, etc.
+- "TIPO DE ARTICULO": a category or type of asset, such as furniture, equipment, vehicles, etc.
 - "Etiqueta": a tag or label that can be assigned to an asset for classification or tracking purposes.
 - "Usuario": a user of the application, who can have different roles and permissions for managing the assets.
 - "IASD": abbreviation for "Iglesia Adventista del Séptimo Día", the Spanish name for the Seventh-day Adventist Church.
@@ -107,7 +135,7 @@ automatically inside this folder) and is used only for the dev server and tests.
 Read `docs/architecture.md` (layers, module rules), `docs/data-model.md` (collections, limits) and
 `docs/deployment.md` (Firebase setup, first admin, GitHub Pages) before changing code.
 The interface uses the THERMINOLOGY above ("Artículo", never "bien"); its mapping to collections/fields
-(Articulo=`assets`, Categoria=`assetTypes`, Departamento=`categories`, Ubicacion=`locations`) is in
+(Articulo=`assets`, Tipo de artículo=`assetTypes`, Departamento=`categories`, Ubicacion=`locations`) is in
 `docs/data-model.md`.
 Field lists/limits live in three places that must stay in sync: `js/config/app-config.js`,
 the `*.model.js` files, and `firestore.rules` / `storage.rules`.

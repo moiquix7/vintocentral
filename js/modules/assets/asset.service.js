@@ -27,14 +27,30 @@ import {
   sanitizePhotos,
   sanitizeInventoryUpdate,
   validateInventoryUpdate,
+  findDuplicateAsset,
 } from './asset.model.js';
+import { assetStore } from './asset.store.js';
 import { catalogLookups } from '../catalogs/catalog.store.js';
 import { addHistoryToBatch } from '../history/history.service.js';
 import { diffAssets } from '../history/history.model.js';
 
-function prepare(input) {
+/**
+ * Sanitises, validates and refuses duplicates (same name in the same location, checked against the
+ * live asset list).
+ * @param {object} input raw form values
+ * @param {string|null} excludeId the article being edited (null when creating)
+ */
+function prepare(input, excludeId) {
   const asset = sanitizeAsset(input);
   const errors = validateAsset(asset);
+  if (!errors.name && !errors.locationId) {
+    const duplicate = findDuplicateAsset(assetStore.getAll(), asset, excludeId);
+    if (duplicate) {
+      const where = catalogLookups.locationName(asset.locationId);
+      const code = duplicate.code ? ` (código ${duplicate.code})` : '';
+      errors.name = `Ya existe "${duplicate.name}"${code} en ${where}. Si son más unidades, aumente su cantidad.`;
+    }
+  }
   if (Object.keys(errors).length) throw new ValidationError(errors);
   return asset;
 }
@@ -99,7 +115,7 @@ export async function getAsset(id) {
  * @returns {Promise<string>} new asset id
  */
 export async function createAsset(input, newPhotos = []) {
-  const asset = prepare(input);
+  const asset = prepare(input, null);
   checkPhotoCount(newPhotos.length);
   const reference = doc(collection(db, COLLECTIONS.assets));
   let photos = [];
@@ -130,7 +146,7 @@ export async function createAsset(input, newPhotos = []) {
  * @param {{ keptPhotos: Array<{path: string, url: string}>, removedPhotos: Array<{path: string}>, newPhotos: Blob[] }} photoChanges
  */
 export async function updateAsset(id, input, { keptPhotos = [], removedPhotos = [], newPhotos = [] } = {}) {
-  const asset = prepare(input);
+  const asset = prepare(input, id);
   const kept = sanitizePhotos(keptPhotos);
   checkPhotoCount(kept.length + newPhotos.length);
   let uploaded = [];
@@ -183,28 +199,6 @@ export async function checkAsset(id, input) {
  * Deletes the document first (so the asset disappears even if photo cleanup fails), then its photos.
  * The history keeps a "deleted" entry with the article's name.
  */
- * Inventory-taking: saves location, condition and availability, and marks the article as verified now
- * (checkedAt). Nothing else in the document changes.
- * @param {string} id
- * @param {{ locationId: string, condition: string, availability: string }} input
- */
-export async function checkAsset(id, input) {
-  const update = sanitizeInventoryUpdate(input);
-  const errors = validateInventoryUpdate(update);
-  if (Object.keys(errors).length) throw new ValidationError(errors);
-  try {
-    await updateDoc(doc(db, COLLECTIONS.assets, id), {
-      ...update,
-      checkedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      updatedBy: session.user.uid,
-    });
-  } catch (error) {
-    throw toAppError(error);
-  }
-}
-
-/** Deletes the document first (so the asset disappears even if photo cleanup fails), then its photos. */
 export async function deleteAsset(asset) {
   try {
     const batch = writeBatch(db);

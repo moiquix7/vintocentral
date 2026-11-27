@@ -10,7 +10,7 @@ import {
 } from '../js/modules/history/history.model.js';
 
 const lookups = {
-  typeName: (id) => ({ t1: 'Mobiliario' })[id] ?? 'Sin categoría',
+  typeName: (id) => ({ t1: 'Mobiliario' })[id] ?? 'Sin tipo',
   categoryName: (id) => ({ c1: 'Música' })[id] ?? 'Sin departamento',
   locationName: (id) => ({ l1: 'Templo', l2: 'Salón de jóvenes' })[id] ?? 'Sin ubicación',
 };
@@ -85,4 +85,12 @@ test('sorting and filtering', () => {
   assert.deepEqual(filterHistory(entries, { text: 'microfono' }).map((e) => e.id), ['1']);
   assert.deepEqual(filterHistory(entries, { text: 'luz' }).map((e) => e.id), ['1', '3']);
   assert.deepEqual(filterHistory(entries, { action: 'create' }).map((e) => e.id), ['2']);
+});
+
+test('history: new fields; a missing switch (old article) equals "No"', () => {
+  assert.deepEqual(diffAssets(stored, { builtIn: false, insured: false, brand: '' }, lookups), []);
+  assert.deepEqual(diffAssets(stored, { insured: true, brand: 'Yamaha' }, lookups), [
+    { field: 'brand', from: '', to: 'Yamaha' },
+    { field: 'insured', from: 'No', to: 'Sí' },
+  ]);
 });
