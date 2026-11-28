@@ -36,6 +36,16 @@ export async function listUsers() {
   }
 }
 
+/** One user (admin only), or null when the document does not exist. */
+export async function getUser(uid) {
+  try {
+    const snapshot = await getDoc(doc(db, COLLECTIONS.users, uid));
+    return snapshot.exists() ? { uid: snapshot.id, ...snapshot.data() } : null;
+  } catch (error) {
+    throw toAppError(error);
+  }
+}
+
 /** True when nobody owns the username yet (or `ownerUid` already owns it). */
 export async function isUsernameAvailable(username, ownerUid = null) {
   const snapshot = await getDoc(doc(db, COLLECTIONS.usernames, username));
@@ -96,6 +106,14 @@ export async function updateUserAccess(targetUid, { role, active, departmentId }
   } catch (error) {
     throw toAppError(error);
   }
+}
+
+/**
+ * Deactivates or reactivates an account, keeping its role and department.
+ * @param {{ uid: string, role: string, departmentId?: string }} user
+ */
+export function setUserActive(user, active) {
+  return updateUserAccess(user.uid, { role: user.role, active, departmentId: user.departmentId ?? '' });
 }
 
 export async function sendPasswordReset(email) {

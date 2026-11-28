@@ -8,6 +8,7 @@ import { assetStore } from './modules/assets/asset.store.js';
 import { CATALOG_STORES } from './modules/catalogs/catalog.store.js';
 import { ensureShell, destroyShell, setActiveNav, shellKey } from './modules/layout/shell.js';
 import { startPresence, stopPresence } from './modules/presence/presence.service.js';
+import { syncEmail } from './modules/profile/profile.service.js';
 
 const HOME_PAGE_PATH = '/home';
 const DASHBOARD_PATH = '/dashboard';
@@ -22,12 +23,14 @@ const ROUTES = Object.freeze([
   { path: '/assets/:id', title: 'Detalle del artículo', permission: 'assets.read', view: () => import('./modules/assets/asset-detail.view.js') },
   { path: '/assets/:id/edit', title: 'Editar artículo', permission: 'assets.write', view: () => import('./modules/assets/asset-form.view.js') },
   { path: '/inventory', title: 'Toma de inventario', permission: 'assets.write', view: () => import('./modules/inventory/inventory.view.js') },
+  { path: '/inventory/easy', title: 'Modo fácil', permission: 'assets.write', view: () => import('./modules/inventory/inventory-easy.view.js') },
   { path: '/profile', title: 'Mi perfil', view: () => import('./modules/profile/profile.view.js') },
   { path: '/records', title: 'Registros', permission: 'catalogs.write', view: () => import('./modules/catalogs/records.view.js') },
   { path: '/records/:kind', title: 'Registros', permission: 'catalogs.write', view: () => import('./modules/catalogs/catalog-list.view.js') },
   { path: '/reports', title: 'Reportes', permission: 'reports.view', view: () => import('./modules/reports/reports.view.js') },
   { path: '/history', title: 'Historial', permission: 'history.view', view: () => import('./modules/history/history.view.js') },
   { path: '/users', title: 'Usuarios', permission: 'users.manage', view: () => import('./modules/users/users.view.js') },
+  { path: '/users/:uid', title: 'Detalle del usuario', permission: 'users.manage', view: () => import('./modules/users/user-detail.view.js') },
 ]);
 
 const STORES = [assetStore, ...CATALOG_STORES];
@@ -41,6 +44,7 @@ function homePath() {
 function startUserServices() {
   STORES.forEach((store) => store.start());
   startPresence();
+  syncEmail(); // after a verified email change (best effort, never throws)
 }
 
 function stopUserServices() {

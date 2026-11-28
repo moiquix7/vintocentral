@@ -2,9 +2,9 @@
  * Change history of articles: what changed, described as readable text. Pure (no DOM, no Firebase).
  * The entry shape must match `validHistory()` in firestore.rules.
  */
-import { AVAILABILITY, CONDITIONS, DEFAULT_AVAILABILITY, LIMITS } from '../../config/app-config.js';
+import { AVAILABILITY, CONDITIONS, DEFAULT_AVAILABILITY, LIMITS, PROPOSED_ACTIONS } from '../../config/app-config.js';
 import { cleanText, foldText } from '../../shared/validation.js';
-import { formatCurrency, formatDate, formatNumber } from '../../shared/format.js';
+import { formatCurrency, formatDate, formatDateTime, formatNumber } from '../../shared/format.js';
 
 const L = LIMITS.history;
 
@@ -13,6 +13,7 @@ export const HISTORY_ACTIONS = Object.freeze({
   create: 'Registró el artículo',
   update: 'Modificó',
   check: 'Verificó (toma de inventario)',
+  uncheck: 'Deshizo la verificación',
   delete: 'Eliminó el artículo',
 });
 
@@ -34,13 +35,17 @@ export const FIELD_LABELS = Object.freeze({
   availability: 'Disponibilidad',
   unavailableReason: 'Motivo',
   notes: 'Observaciones',
+  proposedAction: 'Acción propuesta',
+  proposedActionNote: 'Comentario de la acción',
   quantity: 'Cantidad',
   value: 'Valor unitario',
   acquisitionDate: 'Fecha de adquisición',
   photos: 'Fotos',
+  checkedAt: 'Verificación',
 });
 
-const TRACKED_FIELDS = Object.freeze(Object.keys(FIELD_LABELS));
+/** checkedAt is a stamp: never diffed automatically, only described by uncheckChange(). */
+const TRACKED_FIELDS = Object.freeze(Object.keys(FIELD_LABELS).filter((field) => field !== 'checkedAt'));
 
 function availabilityKey(value) {
   return Object.hasOwn(AVAILABILITY, value) ? value : DEFAULT_AVAILABILITY;
@@ -52,6 +57,7 @@ function rawKey(field, value) {
   if (field === 'tags') return Array.isArray(value) ? value.join('|') : '';
   if (field === 'availability') return availabilityKey(value);
   if (field === 'builtIn' || field === 'insured') return value === true ? 'true' : 'false';
+  if (field === 'proposedAction') return Object.hasOwn(PROPOSED_ACTIONS, value) ? value : '';
   return value === undefined || value === null ? '' : String(value);
 }
 
@@ -74,6 +80,8 @@ export function describeValue(field, value, lookups) {
       return CONDITIONS[value] ?? '';
     case 'availability':
       return AVAILABILITY[availabilityKey(value)];
+    case 'proposedAction':
+      return PROPOSED_ACTIONS[value] ?? 'Ninguna';
     case 'tags':
       return Array.isArray(value) ? value.join(', ') : '';
     case 'value':
@@ -82,6 +90,8 @@ export function describeValue(field, value, lookups) {
       return Number.isFinite(value) ? formatNumber(value) : '';
     case 'acquisitionDate':
       return value ? formatDate(value) : '';
+    case 'checkedAt':
+      return toMillis(value) ? formatDateTime(value) : 'Sin verificar';
     case 'photos': {
       const count = Array.isArray(value) ? value.length : 0;
       return count === 1 ? '1 foto' : `${count} fotos`;
@@ -109,6 +119,11 @@ export function diffAssets(before, after, lookups) {
     });
   }
   return changes.slice(0, L.changes);
+}
+
+/** The single change of an "uncheck" entry: Verificación: <date> → Sin verificar. */
+export function uncheckChange(before) {
+  return { field: 'checkedAt', from: cleanText(describeValue('checkedAt', before?.checkedAt), L.text), to: 'Sin verificar' };
 }
 
 /**

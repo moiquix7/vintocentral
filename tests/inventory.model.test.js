@@ -51,13 +51,28 @@ test('rows edited since the filters changed stay listed', () => {
 });
 
 test('row changes are detected against the stored values (old articles: available)', () => {
-  const same = { locationId: 'l1', condition: 'good', availability: 'available', unavailableReason: '', notes: '' };
+  const same = { locationId: 'l1', condition: 'good', availability: 'available', unavailableReason: '', notes: '', proposedAction: '', proposedActionNote: '' };
   assert.deepEqual(storedStatus(assets[0]), same);
   assert.equal(sameStatus(storedStatus(assets[0]), same), true);
   assert.equal(sameStatus(storedStatus(assets[0]), { ...same, locationId: 'l2' }), false);
   assert.equal(sameStatus(storedStatus(assets[0]), { ...same, availability: 'missing' }), false);
   assert.equal(sameStatus(storedStatus(assets[0]), { ...same, notes: 'Pata floja' }), false);
+  assert.equal(sameStatus(storedStatus(assets[0]), { ...same, proposedAction: 'repair' }), false);
+  assert.equal(storedStatus({ ...assets[0], proposedAction: 'unknown' }).proposedAction, '');
   assert.equal(sameStatus({ locationId: 'l1' }, { locationId: 'l1', notes: '' }), true);
   // A stale reason on an available article is not part of its status.
   assert.equal(storedStatus({ ...assets[0], availability: 'in_use', unavailableReason: 'x' }).unavailableReason, '');
+});
+
+test('modo fácil: pending articles of a location, by name; pending count per location', async () => {
+  const { easyQueue, pendingByLocation } = await import('../js/modules/inventory/inventory.model.js');
+  const list = [
+    { id: 'a', name: 'Mesa', locationId: 'l1' },
+    { id: 'b', name: 'Atril', locationId: 'l1' },
+    { id: 'c', name: 'Banca', locationId: 'l1', checkedAt: at(2026, 3, 2) },
+    { id: 'd', name: 'Piano', locationId: 'l2' },
+  ];
+  assert.deepEqual(easyQueue(list, 'l1', '2026-03-01').map((x) => x.id), ['b', 'a']);
+  assert.deepEqual(easyQueue(list, '', '2026-03-01').map((x) => x.id), ['b', 'a', 'd']);
+  assert.deepEqual([...pendingByLocation(list, '2026-03-01')], [['l1', 2], ['l2', 1]]);
 });

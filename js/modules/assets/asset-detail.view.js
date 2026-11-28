@@ -1,4 +1,7 @@
-/** Asset detail: photos, data, and edit/delete actions according to permissions. */
+/**
+ * Asset detail: photos (full-screen viewer with download, and delete for admin/editor), data, and
+ * edit/delete actions according to permissions.
+ */
 import { h, icon, mount, pageHeader } from '../../core/dom.js';
 import { session } from '../../core/session.js';
 import { navigate } from '../../core/router.js';
@@ -7,30 +10,67 @@ import { formatCurrency, formatDate, formatDateTime, formatNumber } from '../../
 import { assetStore } from './asset.store.js';
 import { catalogLookups, catalogsReady } from '../catalogs/catalog.store.js';
 import { availabilityBadge, conditionBadge, confirmDeleteAsset } from './asset-ui.js';
-import { availabilityOf, isUnavailable } from './asset.model.js';
+import { availabilityOf, isUnavailable, proposedActionOf } from './asset.model.js';
+import { removeAssetPhoto } from './asset.service.js';
 import { assetHistorySection } from '../history/history.timeline.js';
+import { PROPOSED_ACTIONS } from '../../config/app-config.js';
+import { openLightbox } from '../../shared/lightbox.js';
+import { foldText } from '../../shared/validation.js';
 
 function detailRow(label, value) {
   return [h('dt', null, label), h('dd', null, value || '—')];
 }
 
-function gallery(photos) {
-  if (!photos?.length) return h('p', { class: 'muted' }, 'Este artículo no tiene fotos.');
-  return h(
-    'ul',
-    { class: 'gallery' },
-    photos.map((photo, index) =>
-      h(
-        'li',
-        null,
+/** "Silla plástica #2" → "silla-plastica-2" (download file names). */
+function fileSlug(text) {
+  return foldText(text).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'articulo';
+}
+
+/** Opens the viewer at `start`; deleting is offered only with `assets.write`. */
+function showPhotos(asset, start) {
+  const slug = fileSlug(asset.name);
+  openLightbox({
+    images: asset.photos.map((photo, index) => ({
+      url: photo.url,
+      path: photo.path,
+      alt: `Foto ${index + 1} de ${asset.name}`,
+      fileName: `${slug}-foto-${index + 1}.jpg`,
+    })),
+    start,
+    onDelete: session.can('assets.write') ? (image) => removeAssetPhoto(asset.id, image.path) : undefined,
+  });
+}
+
+function gallery(asset) {
+  const photos = asset.photos ?? [];
+  if (!photos.length) return h('p', { class: 'muted' }, 'Este artículo no tiene fotos.');
+  return [
+    h(
+      'ul',
+      { class: 'gallery' },
+      photos.map((photo, index) =>
         h(
-          'a',
-          { href: photo.url, target: '_blank', rel: 'noopener noreferrer' },
-          h('img', { src: photo.url, alt: `Foto ${index + 1} del artículo (abre en una pestaña nueva)`, loading: 'lazy' }),
+          'li',
+          null,
+          h(
+            'button',
+            { type: 'button', class: 'gallery-open', onclick: () => showPhotos(asset, index) },
+            h('img', { src: photo.url, alt: `Foto ${index + 1} del artículo (ampliar)`, loading: 'lazy' }),
+            h('span', { class: 'gallery-zoom', 'aria-hidden': 'true' }, icon('expand')),
+          ),
         ),
       ),
     ),
-  );
+    h('p', { class: 'hint' }, session.can('assets.write') ? 'Toque una foto para verla en grande, descargarla o eliminarla.' : 'Toque una foto para verla en grande o descargarla.'),
+  ];
+}
+
+/** "Reparar — cambiar el cable" / only the comment / '' when nothing was proposed. */
+function proposalText(asset) {
+  const action = PROPOSED_ACTIONS[proposedActionOf(asset)] ?? '';
+  const note = typeof asset.proposedActionNote === 'string' ? asset.proposedActionNote.trim() : '';
+  if (action && note) return [h('strong', null, action), ` — ${note}`];
+  return action ? h('strong', null, action) : note;
 }
 
 async function onDelete(asset, button) {
@@ -57,7 +97,7 @@ function draw(container, asset, historyNode) {
     h(
       'div',
       { class: 'grid-2' },
-      h('section', { class: 'card' }, h('h2', null, 'Fotos'), gallery(asset.photos)),
+      h('section', { class: 'card' }, h('h2', null, 'Fotos'), gallery(asset)),
       h(
         'section',
         { class: 'card' },
@@ -78,6 +118,7 @@ function draw(container, asset, historyNode) {
           detailRow('Disponibilidad', availabilityBadge(asset)),
           isUnavailable(availabilityOf(asset)) ? detailRow('Motivo', asset.unavailableReason) : null,
           detailRow('Observaciones', asset.notes ? h('span', { class: 'pre-line' }, asset.notes) : ''),
+          detailRow('Acción propuesta', proposalText(asset)),
           detailRow('Cantidad', formatNumber(asset.quantity)),
           detailRow('Valor unitario', formatCurrency(asset.value)),
           detailRow('Valor total', formatCurrency((asset.value || 0) * (asset.quantity || 1))),

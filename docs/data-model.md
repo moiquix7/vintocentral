@@ -29,6 +29,7 @@ The document id is the Firebase Authentication uid.
 | `displayName` | string | 1–80 |
 | `role` | string | `admin` \| `editor` \| `viewer` |
 | `active` | bool | `false` blocks all access |
+| `phone` | string | 0–20, optional — digits, spaces, `+ - ( )`. Self-edited in *Mi perfil*; shown to the admin in the user detail |
 | `photoUrl`, `photoPath` | string | optional profile photo (`profiles/{uid}/...`) |
 | `departmentId` | string | 0–64, optional — id from `categories` (the user's **Departamento**). Set by the admin in *Usuarios*; pre-fills the department when registering an article. Never self-edited |
 | `createdAt`, `updatedAt` | timestamp | server time |
@@ -38,8 +39,15 @@ A signed-in account **without** this document (or with `active: false`) has no a
 
 Who may write:
 - **admin**: create (with username) and change role / active of others.
-- **the user themself**: only `displayName`, `username`, `photoUrl`, `photoPath` (+ stamps) — the
-  "Mi perfil" page. Role and active can never be self-edited.
+- **the user themself**: only `displayName`, `username`, `phone`, `photoUrl`, `photoPath` (+ stamps) — the
+  "Mi perfil" page — and `email`, but only to the address Firebase Auth already has
+  (`request.auth.token.email`). Role, active and department can never be self-edited.
+
+**Changing the email** ("Mi perfil" → *Correo electrónico*): the user confirms their password and Firebase
+sends a verification link to the new address (`verifyBeforeUpdateEmail`). The Auth email changes only
+when the link is opened; Firebase then closes the open sessions. On the next sign-in (with the **new**
+email — the username still points to the old one until then) the app copies the Auth email into
+`users/{uid}.email` and `usernames/{username}.email` in one batch (`profile.service.js → syncEmail()`).
 
 ## `usernames/{username}`
 
@@ -54,6 +62,8 @@ Login lookup index: lets people sign in with a username instead of their email.
 - `get` is public (needed before sign-in); `list` is denied, so usernames cannot be enumerated.
   Trade-off: whoever knows a username can learn its email.
 - Written in the same batch as `users/{uid}`; the rules check both sides with `getAfter()`.
+- Update: only by its owner, keeping `uid` and setting `email` to the owner's Auth email (sync after an
+  email change).
 
 ## `assets/{assetId}`
 
@@ -71,15 +81,17 @@ Login lookup index: lets people sign in with a username instead of their email.
 | `categoryId` | string | id from `categories` — shown in the UI as **Departamento**, required |
 | `locationId` | string | id from `locations`, required |
 | `condition` | string | `new` \| `good` \| `fair` \| `poor` \| `out_of_service` |
-| `availability` | string | `available` \| `in_use` \| `loaned` \| `in_repair` \| `missing` (Disponible, En uso, Prestado, En reparación, Extraviado). Optional in the rules; missing = `available` |
-| `unavailableReason` | string | 0–200, optional — why the article is not available. Only kept for `loaned`, `in_repair`, `missing` (the model empties it otherwise) |
+| `availability` | string | `available` \| `in_use` \| `loaned` \| `in_repair` \| `missing` \| `unknown` (Disponible, En uso, Prestado, En reparación, Extraviado, Se desconoce). Optional in the rules; missing = `available` |
+| `unavailableReason` | string | 0–200, optional — why the article is not available. Only kept for `loaned`, `in_repair`, `missing`, `unknown` (the model empties it otherwise) |
 | `notes` | string | 0–500, optional — comments about the article's status (Observaciones) |
 | `tags` | string[] | max 10, each 1–30, lowercase, unique |
 | `acquisitionDate` | string | `YYYY-MM-DD` or empty |
-| `value` | number | 0 – 1 000 000 000 (unit value, local currency) |
+| `value` | number | 0 – 1 000 000 000, **at most two decimals** — unit value in **Bolivianos**, shown as `Bs. 1,234.50` (see *Currency*) |
 | `quantity` | int | 1 – 100 000 |
+| `proposedAction` | string | optional — action proposed in the inventory-taking: `''` (none) \| `dispose` \| `repair` \| `replace` \| `donate` \| `sell` (Colocar de baja, Reparar, Reemplazar, Donar, Vender) |
+| `proposedActionNote` | string | 0–200, optional — comment about the proposed action (may be written without choosing an action) |
 | `photos` | `{ path, url }[]` | max 4 |
-| `checkedAt` | timestamp | optional — last time the article was verified in an inventory-taking (`#/inventory`). The rules only accept the current server time when it changes |
+| `checkedAt` | timestamp | optional — last time the article was verified in an inventory-taking (`#/inventory`). The rules only accept the current server time when it changes, or its removal (*Deshacer verificación*) |
 | `createdAt`, `createdBy`, `updatedAt`, `updatedBy` | | stamps |
 
 `brand`, `model`, `serialNumber`, `builtIn` and `insured` are optional in the rules (articles registered
@@ -92,8 +104,25 @@ live asset list). The same name in another location is allowed; identical units 
 ### Inventory-taking update
 
 The `#/inventory` grid changes only `locationId`, `condition`, `availability`,
-`unavailableReason`, `notes` and stamps `checkedAt` + `updatedAt` + `updatedBy`
+`unavailableReason`, `notes`, `proposedAction`, `proposedActionNote` and stamps `checkedAt` + `updatedAt` + `updatedBy`
 (`asset.service.js → checkAsset()`). The whole document is still validated by `validAsset()`.
+
+### Undoing a verification
+
+*Deshacer* in the inventory grid removes `checkedAt` (`deleteField()`), stamps `updatedAt` / `updatedBy` and
+adds an `uncheck` history entry ("Verificación: 20 nov 2026 10:15 → Sin verificar") in the same batch.
+
+### Removing one photo
+
+The article detail can delete a single photo (`assets.write`): the article is updated without it (with a
+history entry "Fotos: 3 fotos → 2 fotos") and then the file is removed from Storage.
+
+## Currency
+
+All amounts are **Bolivianos**. The interface is in Spanish, the code in English. Amounts are stored as
+numbers with at most two decimals and always shown with two decimals and the symbol in front:
+`Bs. 100.00`, `Bs. 1,250.50` (`formatCurrency()` in `shared/format.js`; symbol `APP.currencySymbol`).
+The form accepts `100`, `100.5` or `100,50` and refuses more than two decimals.
 
 ## `assetHistory/{entryId}`
 
@@ -104,7 +133,7 @@ batch as the article (`asset.service.js`). Immutable.
 |-------|------|-------|
 | `assetId` | string | 1–64, the article's document id |
 | `assetName` | string | 1–120, the article's name at the time (kept after deletion) |
-| `action` | string | `create` \| `update` \| `check` \| `delete` (Registró, Modificó, Verificó, Eliminó) |
+| `action` | string | `create` \| `update` \| `check` \| `uncheck` \| `delete` (Registró, Modificó, Verificó, Deshizo la verificación, Eliminó) |
 | `changes` | `{ field, from, to }[]` | max 20; `field` is an asset field name, `from`/`to` readable text ≤ 200 (validated by `history.model.js`; the rules check list type and size) |
 | `by` | string | uid of the author (must be the signed-in user) |
 | `byName` | string | 1–80, author's display name at the time |

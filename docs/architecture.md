@@ -41,7 +41,7 @@ Rules that keep **high cohesion / low coupling**:
 | Module | Route(s) | Permission |
 |--------|----------|------------|
 | `auth` | `#/login` (username **or** email + password) | public |
-| `profile` | `#/profile` (name, username, photo, password) | any signed-in user |
+| `profile` | `#/profile` (name, username, photo, phone, email, password) | any signed-in user |
 | `home` | `#/home` "Inicio" — overview for every role | `assets.read` |
 | `dashboard` | `#/dashboard` "Tablero" (admin and editor only) | `dashboard.view` |
 | `presence` | no route — heartbeat of connected users, read by the dashboard | any signed-in user writes its own |
@@ -49,8 +49,8 @@ Rules that keep **high cohesion / low coupling**:
 | `assets` | `#/assets`, `#/assets/new`, `#/assets/:id`, `#/assets/:id/edit` | read / `assets.write` |
 | `inventory` | `#/inventory` — inventory-taking grid (see below) | `assets.write` |
 | `catalogs` | `#/records` "Registros" (hub) and `#/records/:kind` — tipos de artículo (`assetTypes`), departments (stored as `categories`, with leader history) and locations (see below) | `catalogs.write`; delete: `catalogs.delete` (admin) |
-| `reports` | `#/reports` (PDF, optionally with the first photo of each asset) | `reports.view` |
-| `users` | `#/users` | `users.manage` |
+| `reports` | `#/reports` — two PDFs: *Informe de artículos* (optionally with the first photo of each asset) and *Informe de toma de inventario* | `reports.view` |
+| `users` | `#/users` (list, filters, create / edit / deactivate) and `#/users/:uid` (detail) | `users.manage` |
 | `layout` | application shell (header, navigation, preferences) | — |
 
 Interface wording follows the CLAUDE.md terminology: **Artículo** (never "bien"), **Tipo de artículo** (never "categoría"),
@@ -76,7 +76,7 @@ For every signed-in user (viewers land here after sign-in; the logo also leads h
 Only **admin** and **editor** (`dashboard.view`); it is their landing page after sign-in.
 
 - KPIs: articles, units, estimated value, **needs attention** (condition *Malo* / *Fuera de
-  servicio*, or availability *En reparación* / *Extraviado*) and **users connected now**.
+  servicio*, or availability *En reparación* / *Extraviado* / *Se desconoce*) and **users connected now**.
 - The **Necesitan atención** card is a link to `#/assets?filtro=atencion`: the article list showing
   only those articles (filter "Solo los que necesitan atención", which the user can turn off), each
   with Ver (its name) and Editar / Eliminar according to the role. `needsAttention()` lives in
@@ -146,9 +146,32 @@ Audit trail of every change to an article, for **admin** and **editor** (`histor
   Viewers see no Acciones column.
 - Search (also by marca, modelo and nro. de serie), filters and sorting as before, plus the switch
   **Solo los que necesitan atención** (turned on by `#/assets?filtro=atencion`, the dashboard card).
+- Amounts (Valor unitario, Valor total, Valor estimado on the Tablero, history) always read
+  `Bs. 1,250.50` — see *Currency* in `docs/data-model.md`.
 
-### Registrar artículo (`#/assets/new`)
+### Article detail — photo viewer
 
+- Each photo opens a **full-screen viewer** (`shared/lightbox.js`, a native `<dialog>` that fills the
+  window): the photo as large as it fits, *Anterior* / *Siguiente* (also ← / → keys), "Foto 2 de 4",
+  **Pantalla completa** (Fullscreen API, only where the browser supports it), **Descargar** and
+  **Cerrar** (also Escape).
+- **Descargar** fetches the image and saves it as `<article-name>-foto-N.jpg` (needs the bucket CORS
+  policy, docs/deployment.md 4b); if the download is blocked the photo opens in a new tab instead.
+- **Eliminar foto** (only `assets.write`: admin, editor) asks for confirmation, removes the photo from
+  the article (history entry) and then from Storage (`asset.service.js → removeAssetPhoto()`).
+- The lightbox has no domain knowledge: the detail view passes the photos and the delete callback.
+
+### Registrar artículo (`#/assets/new`) — step-by-step form
+
+- A **wizard** (`shared/stepper.js`, see *Step-by-step forms*) with four steps:
+  1. **Datos básicos** — Código, Nombre, Descripción, Marca, Modelo, Nro. de serie, Empotrado, Asegurado.
+  2. **Clasificación** — Tipo de artículo, Departamento, Ubicación, Etiquetas.
+  3. **Estado y valor** — Estado, Disponibilidad, Motivo, Cantidad, Valor (Bs.), Fecha de adquisición, Observaciones.
+  4. **Fotos y revisión** — up to 4 photos and a short summary of what will be saved, then *Registrar artículo*.
+- **Siguiente** checks only the fields of the current step (same rules as `validateAsset()`); errors
+  appear under each field and the step does not advance.
+- **Editar artículo** uses the same steps, but every step can be opened directly from the step list and
+  *Guardar cambios* is available on every step (nobody has to walk through four steps to fix one field).
 - Fields: Código, Nombre, Descripción, Marca, Modelo, Nro. de serie, Empotrado (checkbox),
   Asegurado (checkbox), Tipo de artículo, Departamento, Ubicación, Etiquetas, Estado,
   Disponibilidad, Motivo (only when not available), Observaciones, Cantidad, Valor, Fecha de
@@ -176,8 +199,8 @@ A grid to walk through the church and verify every article:
   focus (or Enter). Every save writes only the inventory fields and stamps `checkedAt`
   (`asset.service.js → checkAsset()`). The **Verificado** checkbox stamps `checkedAt` for an article
   that needs no change; once verified in the round it stays checked (the date is shown).
-- **Motivo** (why the article is not available) is shown only for *Prestado*, *En reparación* and
-  *Extraviado*; it is cleared when the article becomes available again. **Observaciones** is free.
+- **Motivo** (why the article is not available) is shown only for *Prestado*, *En reparación*,
+  *Extraviado* and *Se desconoce*; it is cleared when the article becomes available again. **Observaciones** is free.
 - Rows saved while a filter such as *Pendientes* is active stay visible until the filters change,
   so a row does not vanish after its first dropdown change.
 - Saves of one row are queued (never two writes of the same row at once); unsaved values survive
@@ -185,9 +208,44 @@ A grid to walk through the church and verify every article:
 - Filters: text, category, department, location, condition, availability and
   *Pendientes / Verificados / Todos*; sort by location (walking order, default), name, category,
   department, condition or availability.
-- Pure helpers (round date, verified check, progress) live in `inventory.model.js` and are tested.
-- Small screens and focus mode: each row becomes a card (same `responsive-table` pattern); on
-  tablets the table scrolls horizontally inside its card instead of overflowing the page.
+- **Acción propuesta** column: a dropdown — *Ninguna*, **Colocar de baja**, **Reparar**,
+  **Reemplazar**, **Donar**, **Vender** — and a comment field ("Comentario sobre la acción"), so the
+  person can also just write what should happen. Saved like the other fields (and recorded in the
+  history). Filter *Acción propuesta*: todas / con alguna acción / one specific action.
+- **Verificado**: every save, or ticking the checkbox, stores `checkedAt` (server time) in the
+  article; the history entry records who verified it.
+- **Deshacer verificación**: a verified row shows a *Deshacer* button. After confirming, the article's
+  `checkedAt` is removed (it becomes *Pendiente* again; values already saved — location, condition… —
+  are kept) and the history records "Deshizo la verificación" (`asset.service.js → uncheckAsset()`).
+  The row stays listed until the filters change.
+- The round start date is kept per browser in `inventory-round.store.js` (shared with the
+  inventory-taking report).
+- Pure helpers (round date, verified check, progress, proposed-action counts) live in
+  `inventory.model.js` and are tested.
+- **No horizontal scroll, at any width**: every article is a row-card. Its first line is the article
+  (name link, código, tipo · departamento); below it the controls — Ubicación, Estado, Disponibilidad,
+  Motivo / Observaciones, Acción propuesta, Verificado — flow in a grid that wraps to as many columns as
+  fit (`repeat(auto-fit, minmax(…))`), each with its visible label. Every option is on screen; nothing
+  hides behind a sideways scroll.
+
+### Modo fácil (`#/inventory/easy`)
+
+Button **Modo fácil** in the inventory header (CLAUDE.md "Button Modo facil", WCAG, senior-friendly):
+
+1. First screen: *¿Qué ubicación va a revisar?* — big buttons, one per location with its number of pending
+   articles (and *Todas*).
+2. Then, **one question per screen** for each pending article of that location (walking order by name),
+   using `shared/stepper.js`: *¿Dónde está?* (ubicación) → *¿En qué estado está?* → *¿Está disponible?*
+   (+ motivo when not) → *¿Qué se debería hacer?* (acción propuesta + comentario) → *¿Alguna observación?*.
+   Answers are big radio tiles (whole tile is clickable, ≥ 56 px), pre-filled with the stored values, so
+   an article that is fine needs only *Seguir*.
+3. Progress: "Artículo 2 de 7" plus the stepper's "Pregunta 3 de 5" and bars. Buttons **Volver** /
+   **Seguir**; the last question shows **Anotar**.
+4. After saving (`checkAsset()`, same as the grid) a confirmation screen: big ✓ **¡Anotado!**, the
+   article name, and *Siguiente artículo* / *Terminar*. When the location has no pending articles left:
+   "¡Listo! Todo verificado en …".
+- Shared pure helper `easyQueue()` in `inventory.model.js` (pending articles of a location, by name,
+  tested); radio tiles from `shared/choice.js`.
 
 ## Records (`#/records`, "Registros")
 
@@ -243,18 +301,56 @@ rules enforce it** (`firestore.rules`, `storage.rules`) — the UI is never the 
 - Global `error` and `unhandledrejection` handlers catch anything that escaped.
 - Startup failures (no network, Firebase not configured) show a dedicated screen instead of a blank page.
 
-## PDF report with photos
+## Users (`#/users`, admin only)
+
+- **Nuevo usuario** button → dialog with a two-step form: **1. Datos de la persona** (name, username,
+  email) and **2. Acceso** (role, department, temporary password). The account is created with an
+  isolated Auth instance so the admin stays signed in.
+- Table: **Usuario** (@username), **Nombre** (avatar + link to the detail), **Rol**, **Estado**
+  (Activo / Inactivo badge) and a last **Acciones** column: **Editar** (dialog: role and department),
+  **Desactivar** / **Reactivar** (with confirmation) and **Restablecer contraseña** (sends the Firebase
+  reset email). The admin cannot change their own role or deactivate themself (UI + rules).
+- Search (name, username, email), filters *Rol* and *Estado*, sort by nombre, usuario, rol or estado.
+  Pure logic in `user-filter.js` (tested).
+- **Detail** `#/users/:uid`: username, name, email, phone, role, status, department, account creation
+  date; the articles the person **registered** and the ones they **modified last** (from the in-memory
+  asset store, no extra reads), each with a link; and a link to the *Historial* filtered by the
+  person's name (`#/history?texto=<name>`).
+
+## Profile (`#/profile`, "Mi perfil")
+
+- Datos personales: photo (gallery or camera), name, username and **phone**.
+- **Correo electrónico**: shows the current email; changing it asks for the current password and
+  sends a verification link to the new address (see `docs/data-model.md` → users). A notice explains
+  that the change applies after opening the link and that the next sign-in must use the new email.
+- Cambiar contraseña, Apariencia (unchanged). Role and department are shown read-only.
+
+## PDF reports
+
+Two reports on `#/reports`, both with the same design (header, footer, minimalist table):
+
+1. **Informe de artículos** — filters: tipo, departamento, ubicación, estado, disponibilidad,
+   "Incluir fotos". Table and signatures below.
+2. **Informe de toma de inventario** — filters: departamento, ubicación and *Inventario iniciado el*
+   (default: the round date of the inventory-taking page). After the header a **summary**: round date,
+   verified *N de M (P %)*, pending, and the count of each proposed action. Table: Artículo, Cantidad,
+   Ubicación, Estado, Disponibilidad, Verificado (date or "Pendiente"), Acción propuesta (+ comment),
+   Observaciones (reason + notes). **Two signatures**: the signed-in user (name printed under the line,
+   "Responsable de la toma de inventario") and one left blank ("Nombre y firma").
+
+Common design (CLAUDE.md "REPORT DESIGN"); drawing helpers shared by both in `report-layout.js`:
 
 - jsPDF + AutoTable are loaded from cdnjs only when a report is generated.
-- Design (CLAUDE.md "REPORT DESIGN"), A4 landscape, minimalist:
+- Design, A4 landscape, minimalist:
   - **Header** — left: report title, *Departamento* (the department filter, or "Todos los
     departamentos"), report date and *Reportado por*; right: the IASD logo (`APP.logo`) and the
     church name. A muted line lists the other filters only when some are applied. If the logo cannot
     be loaded the report is still produced without it.
   - **Table** — [Foto], Fecha de adquisición, Artículo, Marca, Modelo, Nro. de serie, Cantidad,
     Estado. Plain style: soft header, thin row separators, no value columns.
-  - **Signatures** after the table (on a new page if they do not fit): three lines labelled
-    *Anciano del Departamento*, *Líder entrante* and *Líder saliente*.
+  - **Signatures** after the table (on a new page if they do not fit): in the articles report three
+    lines labelled *Anciano del Departamento*, *Líder entrante* and *Líder saliente*; in the
+    inventory-taking report the two described above.
   - **Footer** on every page: generation date (left) and "Página X de Y" (right).
 - With "Incluir fotos" checked, the first photo of each asset is downloaded (`fetch`, 4 at a time,
   progress shown on the button), center-cropped to a 240 px square JPEG and drawn in the first
@@ -277,16 +373,36 @@ Data is limited in three places:
 
 Photos are resized in the browser (max 1600 px, JPEG) before upload.
 
+## Step-by-step forms (`shared/stepper.js`)
+
+CLAUDE.md asks for senior-friendly, wizard-style forms with clear instructions and progress indicators.
+Long forms are split into short steps by one reusable component (no domain knowledge):
+
+- **Progress**: a numbered step list (done ✓ / current / next) plus "Paso 2 de 4 · Clasificación" and a
+  progress bar. The current step has `aria-current="step"`; the heading of a new step receives focus.
+- **One step visible at a time**, each with its title and a one-sentence instruction in plain words.
+- **Anterior** / **Siguiente** buttons (large, always in the same place); the last step shows the save
+  button. Enter in a field means *Siguiente* (never a premature save).
+- **Validation per step**: the caller gives `validateStep()` (usually the model's `validate*()`); only
+  errors of the current step's fields are shown. If saving fails with a validation error (e.g. a
+  duplicate name detected by the service), the form jumps to the step that holds the first invalid
+  field (`runSubmit(..., { onInvalid })`).
+- `freeNavigation` (editing): every step can be opened from the list and the save button is shown on
+  every step.
+- Short forms (edit user, records, profile cards, login) stay single-screen: splitting 2–3 fields would
+  only add clicks.
+
 ## Interface
 
 - Logo: one file, path in `APP.logo` (`js/config/app-config.js`) and the favicon in `index.html`.
 - Login page: church photo background (`static/img/login-bg.jpg`) under a soft overlay.
-  Follows "don't make me think": logo, `h1` with the church name (`APP.churchFullName`),
-  subtitle with the system name (`APP.systemName`), two fields with a leading icon (user, lock),
+  Follows "don't make me think": logo, the church name (`APP.churchFullName`) as a small line above,
+  and the **highlighted title** `h1` "Control de Inventario" (`APP.systemName`: larger, palette color,
+  soft marker underline), two fields with a leading icon (user, lock),
   a show/hide-password eye button inside the password field, one primary button and the
   "¿Olvidó su contraseña?" link. Below, "¿No tiene cuenta?": the system administrator
-  (`APP.adminContact`: name, role, optional email and phone shown as `mailto:` / `tel:` /
-  WhatsApp links; empty values are simply not shown). No appearance options on this page.
+  (`APP.adminContact`: name, role, and her **phone number and email written out** as `tel:` /
+  `mailto:` links, plus WhatsApp; an empty value is simply not shown). No appearance options on this page.
 - **User menu** (avatar button in the header): Mi perfil, appearance, focus mode, text size, Salir.
 - **Theme**: Sistema / Claro / Oscuro, in the user menu; a sun/moon button in the header switches
   light ↔ dark in one tap (it shows the mode it will switch to). **Palette**: five soft palettes (teal, salvia, lavanda,
@@ -297,6 +413,9 @@ Photos are resized in the browser (max 1600 px, JPEG) before upload.
 - **Focus mode (ADHD-friendly)**: larger spacing, no animations, stronger focus ring, one column,
   cards instead of tables, secondary information hidden.
 - **Text size**: normal / large / extra large (for older users).
+- **Senior-friendly**: large touch targets and text, one task per screen, step-by-step forms with plain
+  instructions, confirmations before anything that cannot be undone, and visible text next to every
+  icon.
 - Preferences are saved per browser (`localStorage`) and applied by a tiny inline script in
   `index.html` before the first paint (no flash of the wrong theme); `core/preferences.js` owns them
   afterwards. Both use the same storage key and value names.

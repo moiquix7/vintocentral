@@ -9,9 +9,10 @@ import {
   CONDITIONS,
   DEFAULT_AVAILABILITY,
   LIMITS,
+  PROPOSED_ACTIONS,
   UNAVAILABLE,
 } from '../../config/app-config.js';
-import { cleanText, cleanMultiline, foldText, toNumber, isIsoDate } from '../../shared/validation.js';
+import { cleanText, cleanMultiline, foldText, toNumber, isIsoDate, hasAtMostTwoDecimals } from '../../shared/validation.js';
 
 const L = LIMITS.asset;
 
@@ -107,7 +108,9 @@ export function validateAsset(asset) {
     errors.quantity = `La cantidad debe ser un número entero entre 1 y ${L.maxQuantity}.`;
   }
   if (!Number.isFinite(asset.value) || asset.value < 0 || asset.value > L.maxValue) {
-    errors.value = 'El valor debe ser un número igual o mayor a 0.';
+    errors.value = 'El valor debe ser un monto en bolivianos igual o mayor a 0. Ej.: 150.50';
+  } else if (!hasAtMostTwoDecimals(asset.value)) {
+    errors.value = 'Use como máximo dos decimales. Ej.: 150.50';
   }
   if (asset.acquisitionDate && !isIsoDate(asset.acquisitionDate)) {
     errors.acquisitionDate = 'La fecha no es válida.';
@@ -160,19 +163,34 @@ export function availabilityOf(asset) {
   return Object.hasOwn(AVAILABILITY, asset?.availability) ? asset.availability : DEFAULT_AVAILABILITY;
 }
 
-/** An article needs attention when it is in bad condition, under repair or missing. */
+/** An article needs attention when it is in bad condition, under repair, missing or of unknown whereabouts. */
 export function needsAttention(asset) {
   return ATTENTION_CONDITIONS.includes(asset?.condition) || ATTENTION_AVAILABILITY.includes(availabilityOf(asset));
 }
 
 /** Fields the inventory-taking grid may change (the service adds checkedAt and the stamps). */
-export const INVENTORY_FIELDS = Object.freeze(['locationId', 'condition', 'availability', 'unavailableReason', 'notes']);
+export const INVENTORY_FIELDS = Object.freeze([
+  'locationId',
+  'condition',
+  'availability',
+  'unavailableReason',
+  'notes',
+  'proposedAction',
+  'proposedActionNote',
+]);
+
+/** Stored proposed action, or '' when there is none (or the value is unknown). */
+export function proposedActionOf(asset) {
+  return Object.hasOwn(PROPOSED_ACTIONS, asset?.proposedAction) ? asset.proposedAction : '';
+}
 
 export function sanitizeInventoryUpdate(input = {}) {
   return {
     locationId: cleanText(input.locationId, 64),
     condition: cleanText(input.condition, 20),
     ...statusText(input),
+    proposedAction: cleanText(input.proposedAction, 20),
+    proposedActionNote: cleanText(input.proposedActionNote, L.proposedActionNote),
   };
 }
 
@@ -182,6 +200,10 @@ export function validateInventoryUpdate(update) {
   if (!update.locationId) errors.locationId = 'Elija una ubicación.';
   if (!Object.hasOwn(CONDITIONS, update.condition)) errors.condition = 'Elija el estado del artículo.';
   if (!Object.hasOwn(AVAILABILITY, update.availability)) errors.availability = 'Elija la disponibilidad del artículo.';
+  // Only the grid sends a proposed action; the article form does not touch it.
+  if (update.proposedAction && !Object.hasOwn(PROPOSED_ACTIONS, update.proposedAction)) {
+    errors.proposedAction = 'Elija una acción de la lista.';
+  }
   return errors;
 }
 

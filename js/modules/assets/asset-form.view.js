@@ -1,5 +1,7 @@
 /**
- * Create / edit an asset. Sections are short and numbered (easier to follow, ADHD-friendly).
+ * Create / edit an asset as a step-by-step form (shared/stepper.js): 1. Datos básicos, 2. Clasificación,
+ * 3. Estado y valor, 4. Fotos y revisión. Each step validates its own fields before moving on; editing can
+ * open any step and save from any step (senior- and ADHD-friendly).
  * Photos: choose from the device or take one with the camera; all are compressed before upload.
  * While typing the name, existing articles with a similar name are listed (to avoid duplicates);
  * the service refuses the same name in the same location.
@@ -9,15 +11,17 @@ import { h, icon, inventoryLoader, mount, pageHeader } from '../../core/dom.js';
 import { navigate } from '../../core/router.js';
 import { session } from '../../core/session.js';
 import { notify, handleError } from '../../core/notify.js';
-import { AVAILABILITY, CONDITIONS, LIMITS } from '../../config/app-config.js';
+import { APP, AVAILABILITY, CONDITIONS, LIMITS } from '../../config/app-config.js';
 import { field, input, select, runSubmit } from '../../shared/form.js';
+import { createStepper } from '../../shared/stepper.js';
 import { compressImage } from '../../shared/image.js';
 import { isCameraSupported, takePhoto } from '../../shared/camera.js';
-import { formatNumber, todayIso } from '../../shared/format.js';
+import { amountInputValue, formatCurrency, formatNumber, todayIso } from '../../shared/format.js';
+import { hasAtMostTwoDecimals, toNumber } from '../../shared/validation.js';
 import { assetStore } from './asset.store.js';
 import { CATALOG_STORES, assetTypeStore, categoryStore, locationStore, catalogLookups, catalogOptions, catalogsReady } from '../catalogs/catalog.store.js';
 import { createAsset, updateAsset } from './asset.service.js';
-import { sanitizePhotos, availabilityOf, isUnavailable, findSimilarAssets } from './asset.model.js';
+import { sanitizeAsset, validateAsset, sanitizePhotos, availabilityOf, isUnavailable, findSimilarAssets } from './asset.model.js';
 import { availabilityBadge, conditionBadge } from './asset-ui.js';
 
 const L = LIMITS.asset;
@@ -199,14 +203,35 @@ function photoSection(photos) {
 
   draw();
   return h(
-    'fieldset',
-    { class: 'card' },
-    h('legend', null, '4. Fotos'),
+    'div',
+    { class: 'field--wide stack-tight' },
     h('p', { class: 'hint' }, `Hasta ${L.photos} fotos. Se reducen automáticamente para ahorrar espacio.`),
     list,
     status,
     h('div', { class: 'button-row' }, chooseButton, fileInput, cameraButton, captureInput),
   );
+}
+
+/** "Revise antes de guardar": the main data as it will be saved (refreshed when the last step opens). */
+function reviewBox() {
+  const list = h('dl', { class: 'details details--compact' });
+  const node = h('section', { class: 'field--wide review', 'aria-label': 'Resumen' }, h('h3', null, 'Revise antes de guardar'), list);
+  const update = (values, photoCount) => {
+    const amount = toNumber(values.value);
+    const rows = [
+      ['Nombre', values.name || '—'],
+      ['Tipo de artículo', values.typeId ? catalogLookups.typeName(values.typeId) : '—'],
+      ['Departamento', values.categoryId ? catalogLookups.categoryName(values.categoryId) : '—'],
+      ['Ubicación', values.locationId ? catalogLookups.locationName(values.locationId) : '—'],
+      ['Estado', CONDITIONS[values.condition] ?? '—'],
+      ['Disponibilidad', AVAILABILITY[values.availability] ?? '—'],
+      ['Cantidad', values.quantity || '—'],
+      ['Valor unitario', amount === null ? 'Sin valor' : formatCurrency(amount)],
+      ['Fotos', `${photoCount} de ${L.photos}`],
+    ];
+    mount(list, rows.map(([label, value]) => [h('dt', null, label), h('dd', null, String(value))]));
+  };
+  return { node, update };
 }
 
 function missingCatalogsNotice() {
@@ -256,7 +281,7 @@ export async function render(container, { params }) {
     unavailableReason: input({ maxlength: L.unavailableReason, value: isUnavailable(availabilityOf(v)) ? v.unavailableReason ?? '' : '', autocomplete: 'off' }),
     notes: h('textarea', { rows: '2', maxlength: L.notes }, v.notes ?? ''),
     quantity: input({ type: 'number', inputmode: 'numeric', min: 1, max: L.maxQuantity, step: 1, value: v.quantity ?? 1 }),
-    value: input({ type: 'number', inputmode: 'decimal', min: 0, max: L.maxValue, step: '0.01', value: v.value ?? '' }),
+    value: input({ type: 'number', inputmode: 'decimal', min: 0, max: L.maxValue, step: '0.01', placeholder: '0.00', value: amountInputValue(v.value) }),
     acquisitionDate: input({ type: 'date', max: todayIso(), value: v.acquisitionDate ?? '' }),
   };
   // The reason is asked only while the article is not available (loaned, under repair, missing).
@@ -271,75 +296,117 @@ export async function render(container, { params }) {
   };
   controls.availability.addEventListener('change', syncReason);
   syncReason();
+  // Amounts always show two decimals ("150" → "150.00"). Values with more decimals are left as typed,
+  // so the validation message reports them instead of rounding silently.
+  controls.value.addEventListener('change', () => {
+    const amount = toNumber(controls.value.value);
+    if (Number.isFinite(amount) && amount >= 0 && hasAtMostTwoDecimals(amount)) controls.value.value = amountInputValue(amount);
+  });
   const photos = createPhotoState(v.photos);
   const similar = similarNames(controls.name, asset?.id ?? null);
-  const submit = h('button', { type: 'submit', class: 'btn btn-primary' }, editing ? 'Guardar cambios' : 'Registrar artículo');
+  const review = reviewBox();
+  const values = () =>
+    Object.fromEntries(Object.entries(controls).map(([name, control]) => [name, TOGGLES.includes(name) ? control.checked : control.value]));
 
-  const form = h(
-    'form',
-    { class: 'stack', novalidate: true, 'aria-label': title },
-    h(
-      'fieldset',
-      { class: 'card form-grid' },
-      h('legend', null, '1. Datos básicos'),
-      field({ label: 'Código de inventario', name: 'code', control: controls.code, hint: 'Opcional. Ej.: SILLA-001' }),
-      field({ label: 'Nombre del artículo', name: 'name', control: controls.name, required: true, hint: 'Ej.: Silla plástica blanca. Le mostraremos los parecidos ya registrados.' }),
-      similar.node,
-      field({ label: 'Descripción', name: 'description', control: controls.description, wide: true, hint: `Opcional. Máximo ${L.description} caracteres.` }),
-      field({ label: 'Marca', name: 'brand', control: controls.brand, hint: 'Opcional. Ej.: Yamaha' }),
-      field({ label: 'Modelo', name: 'model', control: controls.model, hint: 'Opcional. Ej.: MG10XU' }),
-      field({ label: 'Nro. de serie', name: 'serialNumber', control: controls.serialNumber, hint: 'Opcional. Está en la etiqueta del fabricante.' }),
-      toggleField({ label: 'Empotrado', name: 'builtIn', control: controls.builtIn, hint: 'Fijo al edificio (no se puede mover).' }),
-      toggleField({ label: 'Asegurado', name: 'insured', control: controls.insured, hint: 'Tiene póliza de seguro.' }),
-    ),
-    h(
-      'fieldset',
-      { class: 'card form-grid' },
-      h('legend', null, '2. Clasificación'),
-      field({ label: 'Tipo de artículo', name: 'typeId', control: controls.typeId, required: true, hint: 'Ej.: Mobiliario, Equipo de sonido, Vehículos.' }),
-      field({ label: 'Departamento', name: 'categoryId', control: controls.categoryId, required: true, hint: editing ? 'Ministerio responsable.' : 'Ministerio responsable. Se propone el suyo; puede cambiarlo.' }),
-      field({ label: 'Ubicación', name: 'locationId', control: controls.locationId, required: true }),
-      field({ label: 'Etiquetas', name: 'tags', control: controls.tags, wide: true, hint: `Separadas por comas, máximo ${L.tags}. Ej.: donación, jóvenes` }),
-    ),
-    h(
-      'fieldset',
-      { class: 'card form-grid' },
-      h('legend', null, '3. Estado y valor'),
-      field({ label: 'Estado', name: 'condition', control: controls.condition, required: true }),
-      field({ label: 'Disponibilidad', name: 'availability', control: controls.availability, required: true }),
-      reasonField,
-      field({ label: 'Cantidad', name: 'quantity', control: controls.quantity, required: true }),
-      field({ label: 'Valor unitario', name: 'value', control: controls.value, hint: 'Opcional. Valor estimado de una unidad.' }),
-      field({ label: 'Fecha de adquisición', name: 'acquisitionDate', control: controls.acquisitionDate }),
-      field({ label: 'Observaciones', name: 'notes', control: controls.notes, wide: true, hint: `Opcional. Comentarios sobre el estado del artículo. Máximo ${L.notes} caracteres.` }),
-    ),
-    photoSection(photos),
-    h('div', { class: 'button-row form-actions' }, h('a', { href: backHref, class: 'btn btn-secondary' }, 'Cancelar'), submit),
-  );
+  const steps = [
+    {
+      title: 'Datos básicos',
+      instructions: 'Escriba el nombre del artículo. Lo demás es opcional: complete lo que sepa.',
+      fields: ['code', 'name', 'description', 'brand', 'model', 'serialNumber', 'builtIn', 'insured'],
+      nodes: [
+        field({ label: 'Nombre del artículo', name: 'name', control: controls.name, required: true, hint: 'Ej.: Silla plástica blanca. Le mostraremos los parecidos ya registrados.' }),
+        field({ label: 'Código de inventario', name: 'code', control: controls.code, hint: 'Opcional. Ej.: SILLA-001' }),
+        similar.node,
+        field({ label: 'Descripción', name: 'description', control: controls.description, wide: true, hint: `Opcional. Máximo ${L.description} caracteres.` }),
+        field({ label: 'Marca', name: 'brand', control: controls.brand, hint: 'Opcional. Ej.: Yamaha' }),
+        field({ label: 'Modelo', name: 'model', control: controls.model, hint: 'Opcional. Ej.: MG10XU' }),
+        field({ label: 'Nro. de serie', name: 'serialNumber', control: controls.serialNumber, hint: 'Opcional. Está en la etiqueta del fabricante.' }),
+        toggleField({ label: 'Empotrado', name: 'builtIn', control: controls.builtIn, hint: 'Fijo al edificio (no se puede mover).' }),
+        toggleField({ label: 'Asegurado', name: 'insured', control: controls.insured, hint: 'Tiene póliza de seguro.' }),
+      ],
+    },
+    {
+      title: 'Clasificación',
+      instructions: 'Elija qué tipo de artículo es, qué departamento lo cuida y dónde está.',
+      fields: ['typeId', 'categoryId', 'locationId', 'tags'],
+      nodes: [
+        field({ label: 'Tipo de artículo', name: 'typeId', control: controls.typeId, required: true, hint: 'Ej.: Mobiliario, Equipo de sonido, Vehículos.' }),
+        field({ label: 'Departamento', name: 'categoryId', control: controls.categoryId, required: true, hint: editing ? 'Ministerio responsable.' : 'Ministerio responsable. Se propone el suyo; puede cambiarlo.' }),
+        field({ label: 'Ubicación', name: 'locationId', control: controls.locationId, required: true }),
+        field({ label: 'Etiquetas', name: 'tags', control: controls.tags, wide: true, hint: `Opcional. Separadas por comas, máximo ${L.tags}. Ej.: donación, jóvenes` }),
+      ],
+    },
+    {
+      title: 'Estado y valor',
+      instructions: '¿Cómo está el artículo y cuánto vale? Si no sabe el valor, déjelo vacío.',
+      fields: ['condition', 'availability', 'unavailableReason', 'quantity', 'value', 'acquisitionDate', 'notes'],
+      nodes: [
+        field({ label: 'Estado', name: 'condition', control: controls.condition, required: true }),
+        field({ label: 'Disponibilidad', name: 'availability', control: controls.availability, required: true }),
+        reasonField,
+        field({ label: 'Cantidad', name: 'quantity', control: controls.quantity, required: true }),
+        field({
+          label: `Valor unitario (${APP.currencySymbol})`,
+          name: 'value',
+          control: controls.value,
+          prefix: APP.currencySymbol,
+          hint: 'Opcional. Valor estimado de una unidad, en bolivianos con dos decimales. Ej.: 150.50',
+        }),
+        field({ label: 'Fecha de adquisición', name: 'acquisitionDate', control: controls.acquisitionDate, hint: 'Opcional.' }),
+        field({ label: 'Observaciones', name: 'notes', control: controls.notes, wide: true, hint: `Opcional. Comentarios sobre el estado del artículo. Máximo ${L.notes} caracteres.` }),
+      ],
+    },
+    {
+      title: 'Fotos y revisión',
+      instructions: editing
+        ? 'Agregue o quite fotos y revise los datos. Luego pulse «Guardar cambios».'
+        : 'Agregue fotos si puede (opcional), revise los datos y pulse «Registrar artículo».',
+      fields: [],
+      nodes: [photoSection(photos), review.node],
+    },
+  ];
+  const lastStep = steps.length - 1;
 
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const values = Object.fromEntries(
-      Object.entries(controls).map(([name, control]) => [name, TOGGLES.includes(name) ? control.checked : control.value]),
-    );
+  async function save(stepper) {
+    const input = values();
     let savedId = asset?.id ?? null;
-    const ok = await runSubmit(form, submit, async () => {
-      if (editing) {
-        await updateAsset(asset.id, values, {
-          keptPhotos: photos.kept,
-          removedPhotos: photos.removed,
-          newPhotos: photos.added.map((p) => p.blob),
-        });
-      } else {
-        savedId = await createAsset(values, photos.added.map((p) => p.blob));
-      }
-    });
+    const ok = await runSubmit(
+      stepper.form,
+      stepper.submitButton,
+      async () => {
+        if (editing) {
+          await updateAsset(asset.id, input, {
+            keptPhotos: photos.kept,
+            removedPhotos: photos.removed,
+            newPhotos: photos.added.map((p) => p.blob),
+          });
+        } else {
+          savedId = await createAsset(input, photos.added.map((p) => p.blob));
+        }
+      },
+      'Guardando…',
+      { onInvalid: stepper.revealErrors },
+    );
     if (ok) {
       notify.success(editing ? 'Cambios guardados.' : 'Artículo registrado.');
       // New article → back to the list; edited article → its detail.
       navigate(editing ? `/assets/${encodeURIComponent(savedId)}` : '/assets');
     }
+  }
+
+  const stepper = createStepper({
+    label: title,
+    steps,
+    submitLabel: editing ? 'Guardar cambios' : 'Registrar artículo',
+    freeNavigation: editing,
+    cancel: h('a', { href: backHref, class: 'btn btn-secondary' }, 'Cancelar'),
+    validateStep: () => validateAsset(sanitizeAsset(values())),
+    onStepChange: (index) => {
+      if (index === lastStep) review.update(values(), photos.count);
+    },
+    onSubmit: save,
   });
+  const form = stepper.form;
 
   mount(container, pageHeader(title), form);
   return () => {

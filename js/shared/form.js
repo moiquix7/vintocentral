@@ -10,11 +10,12 @@ let fieldCounter = 0;
 
 /**
  * @param {{ label: string, name: string, control: HTMLElement, hint?: string, required?: boolean, wide?: boolean,
- *   icon?: string, action?: HTMLElement }} options
+ *   icon?: string, prefix?: string, action?: HTMLElement }} options
  *   icon: name of a dom.js icon shown inside the control, on the left;
+ *   prefix: short text shown inside the control, on the left (e.g. the currency "Bs.");
  *   action: small button shown inside the control, on the right (e.g. show password).
  */
-export function field({ label, name, control, hint, required = false, wide = false, icon, action }) {
+export function field({ label, name, control, hint, required = false, wide = false, icon, prefix, action }) {
   const id = `f-${name}-${++fieldCounter}`;
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
@@ -27,14 +28,21 @@ export function field({ label, name, control, hint, required = false, wide = fal
     { class: `field${wide ? ' field--wide' : ''}`, dataset: { field: name } },
     h('label', { for: id }, label, required ? h('span', { class: 'required', 'aria-hidden': 'true' }, ' *') : null),
     hint ? h('p', { class: 'hint', id: hintId }, hint) : null,
-    icon || action ? decorate(control, icon, action) : control,
+    icon || prefix || action ? decorate(control, { icon, prefix, action }) : control,
     h('p', { class: 'field-error', id: errorId, hidden: true }),
   );
 }
 
-function decorate(control, icon, action) {
-  const classes = ['input-addon', icon ? 'input-addon--icon' : '', action ? 'input-addon--action' : ''];
-  return h('div', { class: classes.filter(Boolean).join(' ') }, icon ? svgIcon(icon) : null, control, action ?? null);
+function decorate(control, { icon, prefix, action }) {
+  const classes = ['input-addon', icon ? 'input-addon--icon' : '', prefix ? 'input-addon--prefix' : '', action ? 'input-addon--action' : ''];
+  return h(
+    'div',
+    { class: classes.filter(Boolean).join(' ') },
+    icon ? svgIcon(icon) : null,
+    prefix ? h('span', { class: 'input-prefix', 'aria-hidden': 'true' }, prefix) : null,
+    control,
+    action ?? null,
+  );
 }
 
 export function input(props = {}) {
@@ -79,9 +87,12 @@ export function showErrors(form, errors) {
 /**
  * Runs an async submit action with the button disabled and consistent error handling:
  * validation errors go inline, everything else becomes a toast.
+ * @param {{ onInvalid?: (fields: Record<string, string>) => void }} [options]
+ *   onInvalid: called with the invalid fields before they are shown (e.g. a step-by-step form opens
+ *   the step that holds them, so the messages are visible and the focus can land on them)
  * @returns {Promise<boolean>} true when the action succeeded
  */
-export async function runSubmit(form, button, action, busyText = 'Guardando…') {
+export async function runSubmit(form, button, action, busyText = 'Guardando…', { onInvalid } = {}) {
   const originalContent = [...button.childNodes];
   button.disabled = true;
   button.replaceChildren(inventoryLoader({ label: busyText, size: 'small' }));
@@ -92,6 +103,7 @@ export async function runSubmit(form, button, action, busyText = 'Guardando…')
     return true;
   } catch (error) {
     if (error instanceof ValidationError) {
+      onInvalid?.(error.fields);
       showErrors(form, error.fields);
       notify.error(error.userMessage);
     } else {

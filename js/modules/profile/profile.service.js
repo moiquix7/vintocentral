@@ -1,6 +1,8 @@
 /**
- * The signed-in user's own profile: name, username, photo and password.
- * Only these fields can be self-edited (firestore.rules → validSelfUpdate); role/active cannot.
+ * The signed-in user's own profile: name, username, phone, photo, email and password.
+ * Only these fields can be self-edited (firestore.rules → validSelfUpdate); role/active/department cannot.
+ * Email change: Firebase sends a verification link (verifyBeforeUpdateEmail); once the Auth email has
+ * changed, syncEmail() copies it to users/{uid} and usernames/{username} on the next sign-in.
  */
 import {
   auth,
@@ -16,17 +18,26 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   updatePassword,
+  verifyBeforeUpdateEmail,
 } from '../../core/firebase.js';
 import { session } from '../../core/session.js';
 import { AppError, ValidationError, toAppError, isNotFound } from '../../core/errors.js';
 import { COLLECTIONS } from '../../config/app-config.js';
-import { sanitizeProfileUpdate, validateProfileUpdate, validatePasswordChange } from '../users/user.model.js';
+import { sanitizeProfileUpdate, validateProfileUpdate, validatePasswordChange, validateEmailChange } from '../users/user.model.js';
 import { isUsernameAvailable } from '../users/user.service.js';
 
 const PASSWORD_MESSAGES = Object.freeze({
   'auth/invalid-credential': 'La contraseña actual no es correcta.',
   'auth/wrong-password': 'La contraseña actual no es correcta.',
   'auth/requires-recent-login': 'Por seguridad, salga e ingrese de nuevo antes de cambiar la contraseña.',
+});
+
+const EMAIL_MESSAGES = Object.freeze({
+  'auth/invalid-credential': ['emailPassword', 'La contraseña actual no es correcta.'],
+  'auth/wrong-password': ['emailPassword', 'La contraseña actual no es correcta.'],
+  'auth/email-already-in-use': ['newEmail', 'Ya existe una cuenta con ese correo.'],
+  'auth/invalid-email': ['newEmail', 'El correo electrónico no es válido.'],
+  'auth/invalid-new-email': ['newEmail', 'El correo electrónico no es válido.'],
 });
 
 function currentUserOrThrow() {
@@ -45,8 +56,8 @@ async function removeStoredPhoto(path) {
 }
 
 /**
- * Saves name and username; optionally replaces or removes the photo.
- * @param {{ displayName: string, username: string }} input
+ * Saves name, username and phone; optionally replaces or removes the photo.
+ * @param {{ displayName: string, username: string, phone: string }} input
  * @param {{ newPhoto?: Blob|null, removePhoto?: boolean }} photoChange
  */
 export async function updateProfile(input, { newPhoto = null, removePhoto = false } = {}) {
@@ -67,6 +78,7 @@ export async function updateProfile(input, { newPhoto = null, removePhoto = fals
     const changes = {
       displayName: profile.displayName,
       username: profile.username,
+      phone: profile.phone,
       updatedAt: serverTimestamp(),
       updatedBy: user.uid,
     };
@@ -95,6 +107,46 @@ export async function updateProfile(input, { newPhoto = null, removePhoto = fals
   }
 
   if ((newPhoto || removePhoto) && previous.photoPath) await removeStoredPhoto(previous.photoPath);
+}
+
+/**
+ * Sends a verification link to the new email. The Auth email changes only when the link is opened.
+ * @param {{ newEmail: string, currentPassword: string }} input
+ */
+export async function requestEmailChange({ newEmail, currentPassword }) {
+  const user = currentUserOrThrow();
+  const { email, errors } = validateEmailChange({ newEmail, currentEmail: user.email, currentPassword });
+  if (Object.keys(errors).length) throw new ValidationError(errors);
+  try {
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, currentPassword));
+    await verifyBeforeUpdateEmail(user, email);
+  } catch (error) {
+    const known = EMAIL_MESSAGES[error?.code];
+    if (known) throw new ValidationError({ [known[0]]: known[1] }, known[1]);
+    throw toAppError(error);
+  }
+  return email;
+}
+
+/**
+ * After a verified email change, the Auth email differs from the stored one: copy it to the profile
+ * and to the username index (one batch; the rules only accept the Auth email). Best effort: a failure is
+ * logged and retried on the next sign-in.
+ */
+export async function syncEmail() {
+  const user = auth.currentUser;
+  const profile = session.profile;
+  if (!user?.email || !profile || user.uid !== profile.uid) return;
+  const email = user.email.toLowerCase();
+  if (email === String(profile.email ?? '').toLowerCase()) return;
+  try {
+    const batch = writeBatch(db);
+    batch.update(doc(db, COLLECTIONS.users, user.uid), { email, updatedAt: serverTimestamp(), updatedBy: user.uid });
+    if (profile.username) batch.update(doc(db, COLLECTIONS.usernames, profile.username), { email });
+    await batch.commit();
+  } catch (error) {
+    console.warn('[VintoCentral] email sync failed (retried on next sign-in)', error);
+  }
 }
 
 export async function changePassword(input) {

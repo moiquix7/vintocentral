@@ -10,7 +10,8 @@ export const APP = Object.freeze({
   churchFullName: 'Iglesia Adventista del Séptimo Día Vinto - Central',
   systemName: 'Control de Inventario',
   locale: 'es-BO',
-  currency: 'BOB',
+  /** Bolivianos, always written before the amount with two decimals: "Bs. 100.00" (shared/format.js). */
+  currencySymbol: 'Bs.',
   /** Single logo file used by the header, login and error screens (favicon: index.html). */
   logo: 'static/img/logo-iasd.png',
   loginBackground: 'static/img/login-bg.jpg',
@@ -54,16 +55,27 @@ export const AVAILABILITY = Object.freeze({
   loaned: 'Prestado',
   in_repair: 'En reparación',
   missing: 'Extraviado',
+  /** Whereabouts or state not known: counts as not available. */
+  unknown: 'Se desconoce',
 });
 
 export const DEFAULT_AVAILABILITY = 'available';
 
 /** Availability values that mean "not available": only these keep a reason (unavailableReason). */
-export const UNAVAILABLE = Object.freeze(['loaned', 'in_repair', 'missing']);
+export const UNAVAILABLE = Object.freeze(['loaned', 'in_repair', 'missing', 'unknown']);
+
+/** Action proposed for an article during the inventory-taking ('' = none). */
+export const PROPOSED_ACTIONS = Object.freeze({
+  dispose: 'Colocar de baja',
+  repair: 'Reparar',
+  replace: 'Reemplazar',
+  donate: 'Donar',
+  sell: 'Vender',
+});
 
 /** The dashboard flags an article as "needs attention" when its condition or availability is one of these. */
 export const ATTENTION_CONDITIONS = Object.freeze(['poor', 'out_of_service']);
-export const ATTENTION_AVAILABILITY = Object.freeze(['in_repair', 'missing']);
+export const ATTENTION_AVAILABILITY = Object.freeze(['in_repair', 'missing', 'unknown']);
 
 /** Connected users: heartbeat interval and how recent the last one must be to count as connected. */
 export const PRESENCE = Object.freeze({ heartbeatMs: 2 * 60 * 1000, onlineWindowMs: 5 * 60 * 1000 });
@@ -78,6 +90,7 @@ export const LIMITS = Object.freeze({
     serialNumber: 60,
     unavailableReason: 200,
     notes: 500,
+    proposedActionNote: 200,
     tags: 10,
     tagLength: 30,
     photos: 4,
@@ -85,7 +98,7 @@ export const LIMITS = Object.freeze({
     maxQuantity: 100_000,
   },
   catalog: { name: 60, description: 200, leader: 80, maxLeaders: 30, firstYear: 1950 },
-  user: { email: 254, displayName: 80, minPassword: 8, maxPassword: 128, usernameMin: 3, usernameMax: 30 },
+  user: { email: 254, displayName: 80, phone: 20, minPassword: 8, maxPassword: 128, usernameMin: 3, usernameMax: 30 },
   image: { maxInputBytes: 20 * 1024 * 1024, maxSide: 1600, quality: 0.8 },
   profileImage: { maxSide: 512, quality: 0.85 },
   /** Change history: changes per entry, length of each described value, entries per page. */
@@ -107,3 +120,5 @@ export const COLLECTIONS = Object.freeze({
 
 /** Username format (must match validUsername() in firestore.rules). */
 export const USERNAME_PATTERN = /^[a-z0-9._-]{3,30}$/;
+/** Phone format (must match validPhone() in firestore.rules): digits, spaces, + - ( ). Empty = none. */
+export const PHONE_PATTERN = /^[0-9+() -]{0,20}$/;

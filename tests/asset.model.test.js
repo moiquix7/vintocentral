@@ -153,3 +153,13 @@ test('findSimilarAssets: every typed word, exact match first, limited, needs 2+ 
   assert.equal(findSimilarAssets(existing, 'silla', { limit: 1 }).length, 1);
   assert.deepEqual(findSimilarAssets(existing, 'silla', { excludeId: 'a1' }).map((a) => a.id), ['a2']);
 });
+
+test('"Se desconoce": valid availability, counts as not available and needs attention', async () => {
+  const m = await import('../js/modules/assets/asset.model.js');
+  assert.equal(m.availabilityOf({ availability: 'unknown' }), 'unknown');
+  assert.equal(m.isUnavailable('unknown'), true);
+  assert.equal(m.needsAttention({ condition: 'good', availability: 'unknown' }), true);
+  const update = m.sanitizeInventoryUpdate({ locationId: 'l', condition: 'good', availability: 'unknown', unavailableReason: 'Nadie sabe' });
+  assert.equal(update.unavailableReason, 'Nadie sabe');
+  assert.deepEqual(m.validateInventoryUpdate(update), {});
+});
