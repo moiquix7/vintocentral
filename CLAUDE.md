@@ -82,12 +82,13 @@ HTML, JavaScript,css, firebase, firebase authentication, firebase firestore, fir
 - the dashboard page is available just to administrators and editors, and will provide key indicators on the inventory status, such as total assets, assets by category, assets by department and assets by location, also will show the number of users active/connected to the system, and the number of assets that need attention (e.g., assets that are in poor condition or need maintenance).
 - Display a graph bar horizontal axis = y axis = x, with the number of assets by department.
 - Display a graph bar horizontal axis = y axis = x, with the number of assets by location.
-- turn clickable the card "Necesitan atencion" to navigate to the page that displays the list of assets that need attention, with options to view their details and edit them (if the user has the appropriate permissions).
+- turn clickable the card "Necesitan atencion" to navigate to the page that displays the details of the assets that need attention open the page of the articulos with the filter applied to show only the assets that need attention (e.g., assets that are in poor condition or need maintenance). and load the results directly.
+- if exists some record of the assets that need attention, the system will display an animation in the card in color red.
 
 ### INVENTORY-TAKING PAGE
 - The inventory-taking page will allow users to view and update the status of assets in a grid/table format, with columns for asset name, category, department, location, condition, and availability.
 - Users will be able to update the status of each asset by selecting the appropriate values from dropdown menus or checkboxes, and the system will automatically save the changes to the database.
-- The page will also provide a progress indicator to show the number of assets that have been verified and updated, and will allow users to filter and sort the assets by category, department, location, condition, and availability
+- The page will also provide a progress indicator to show the number of assets that have been verified and updated, and will allow users to filter and sort the assets by category, department, location, condition, and availability.
 - also allow users let know the reason why the assets is not available, and provide a field to enter comments or notes about the asset's status.
 
 ### RECORDS PAGE

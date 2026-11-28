@@ -11,7 +11,7 @@ import { NAV_ITEMS } from '../../config/navigation.js';
 import { assetStore } from '../assets/asset.store.js';
 import { CATALOG_STORES, categoryStore, locationStore, catalogLookups, catalogsReady } from '../catalogs/catalog.store.js';
 import { watchPresence } from '../presence/presence.service.js';
-import { formatCurrency, formatNumber } from '../../shared/format.js';
+import { formatCurrency, formatNumber, percentOf } from '../../shared/format.js';
 import { axisBarChart, barList, kpi, segmentedBar } from '../../shared/charts.js';
 import { articlesPerRecord, computeStats } from './dashboard.stats.js';
 
@@ -47,8 +47,46 @@ function shortcuts() {
   );
 }
 
-function draw(container, connected) {
+/**
+ * "Necesitan atención" tile: red when there is at least one, linked to the filtered article list.
+ * Pill: share of the articles (real data, not a trend).
+ * @param {number} count
+ * @param {number} totalRecords
+ * @param {boolean} pulse play the soft red pulse (only on open or when the number changed)
+ */
+function attentionKpi(count, totalRecords, pulse) {
+  return kpi('Necesitan atención', formatNumber(count), {
+    tone: count ? 'alert' : '',
+    pulse: count > 0 && pulse,
+    iconName: 'alert',
+    badge: count ? { text: `${percentOf(count, totalRecords)} % del total`, tone: 'bad' } : { text: 'Todo en orden', tone: 'good' },
+    detail: h('small', { class: 'muted block' }, 'Malo, fuera de servicio, en reparación o extraviado'),
+    href: '#/assets?filtro=atencion',
+    linkText: count ? 'Ver la lista' : 'Ver artículos',
+  });
+}
+
+/**
+ * Pill for "Unidades en total": share of units whose availability is "Disponible" (same figure as the
+ * Disponibilidad chart). None while there are no units.
+ * @param {{ totalUnits: number, byAvailability: Array<{ key: string, units: number }> }} stats
+ */
+function availableBadge({ totalUnits, byAvailability }) {
+  if (!totalUnits) return null;
+  const available = byAvailability.find((row) => row.key === 'available')?.units ?? 0;
+  return { text: `${percentOf(available, totalUnits)} % disponible`, tone: 'neutral' };
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {Array<{ displayName: string }> | null | undefined} connected
+ * @param {{ attentionShown: number | null }} state remembers the last attention count drawn, so a
+ *   redraw (e.g. a presence heartbeat) does not replay the pulse
+ */
+function draw(container, connected, state) {
   const stats = computeStats(assetStore.getAll(), catalogLookups);
+  const pulse = stats.needsAttention !== state.attentionShown;
+  state.attentionShown = stats.needsAttention;
   const canWrite = session.can('assets.write');
   mount(
     container,
@@ -61,15 +99,9 @@ function draw(container, connected) {
       'section',
       { class: 'kpis', 'aria-label': 'Indicadores' },
       kpi('Artículos registrados', formatNumber(stats.totalRecords), { iconName: 'box' }),
-      kpi('Unidades en total', formatNumber(stats.totalUnits)),
-      kpi('Valor estimado', formatCurrency(stats.totalValue)),
-      kpi('Necesitan atención', formatNumber(stats.needsAttention), {
-        tone: stats.needsAttention ? 'warn' : '',
-        iconName: 'alert',
-        detail: h('small', { class: 'muted block' }, 'Malo, fuera de servicio, en reparación o extraviado'),
-        href: '#/assets?filtro=atencion',
-        linkText: stats.needsAttention ? 'Ver la lista' : 'Ver artículos',
-      }),
+      kpi('Unidades en total', formatNumber(stats.totalUnits), { iconName: 'layers', badge: availableBadge(stats) }),
+      kpi('Valor estimado', formatCurrency(stats.totalValue), { iconName: 'dollar' }),
+      attentionKpi(stats.needsAttention, stats.totalRecords, pulse),
       connectedKpi(connected),
     ),
     stats.totalRecords === 0
@@ -93,18 +125,19 @@ function draw(container, connected) {
             segmentedBar('Estado de los artículos (unidades)', stats.byCondition, 'condition'),
             segmentedBar('Disponibilidad (unidades)', stats.byAvailability, 'availability'),
           ),
-          barList('Artículos por departamento', articlesPerDepartment(assetStore.getAll(), categoryStore.getAll())),
           h(
             'div',
             { class: 'grid-2' },
             axisBarChart('Artículos por departamento', articlesPerRecord(assetStore.getAll(), categoryStore.getAll(), 'categoryId', 'Sin departamento'), {
               axisLabel: 'Número de artículos',
+              item: ['departamento', 'departamentos'],
             }),
             axisBarChart('Artículos por ubicación', articlesPerRecord(assetStore.getAll(), locationStore.getAll(), 'locationId', 'Sin ubicación'), {
               axisLabel: 'Número de artículos',
+              item: ['ubicación', 'ubicaciones'],
             }),
           ),
-          barList('Por tipo de artículo (unidades)', stats.byType),
+          barList('Por tipo de artículo (unidades)', stats.byType, { item: ['tipo', 'tipos'] }),
         ],
     shortcuts(),
   );
@@ -113,7 +146,8 @@ function draw(container, connected) {
 export async function render(container) {
   await Promise.all([assetStore.whenReady(), catalogsReady()]);
   let connected; // undefined until the first presence snapshot
-  const redraw = () => draw(container, connected);
+  const state = { attentionShown: null };
+  const redraw = () => draw(container, connected, state);
   redraw();
   const unsubscribers = [assetStore, ...CATALOG_STORES].map((store) => store.subscribe(redraw));
   unsubscribers.push(

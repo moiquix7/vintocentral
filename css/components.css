@@ -301,22 +301,54 @@ input:hover, select:hover, textarea:hover { border-color: var(--muted); }
 }
 .item-list li { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
 
-/* KPIs and bar charts */
-.kpis { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-bottom: var(--space-4); }
-.kpi { background: var(--surface); border: 1px solid var(--border); border-left: 6px solid var(--accent); border-radius: var(--radius); padding: var(--space-4); }
-.kpi--warn { border-left-color: var(--warn); }
+/*
+ * KPI strip: one card, tiles separated by thin lines. Each tile draws its divider just outside its
+ * left and top edge (over the tile painted before it); the strip clips the outer ones, so the lines
+ * stay right however the tiles wrap.
+ */
+.kpis {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); overflow: hidden; margin-bottom: var(--space-4);
+}
+.kpi {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1);
+  padding: var(--space-4) var(--space-5); background: var(--surface); min-width: 0;
+  box-shadow: -1px 0 0 var(--border), 0 -1px 0 var(--border);
+}
+.kpi-icon {
+  display: inline-grid; place-items: center; width: 40px; height: 40px; margin-bottom: var(--space-3);
+  border: 1px solid var(--border); border-radius: var(--radius-small); color: var(--label); background: var(--surface);
+}
+.kpi-icon .icon { width: 20px; height: 20px; }
 .kpi-label { color: var(--muted); margin: 0; }
-.kpi-value { font-size: 1.7rem; font-weight: 700; margin: 0; }
+.kpi-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+.kpi-value { font-size: 1.6rem; font-weight: 700; margin: 0; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.kpi-detail { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Pill next to the value: text + border, never color alone (the text says what it is). */
+.kpi-badge {
+  display: inline-flex; align-items: center; padding: 0.1rem 0.6rem; border: 1px solid; border-radius: 999px;
+  font-size: 0.85rem; font-weight: 650; white-space: nowrap;
+}
+.kpi-badge--good { color: var(--success); background: var(--success-soft); border-color: color-mix(in srgb, var(--success) 35%, transparent); }
+.kpi-badge--bad { color: var(--danger); background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+.kpi-badge--neutral { color: var(--muted); background: var(--surface-alt); border-color: var(--border); }
+.kpi--warn .kpi-icon { color: var(--warn); border-color: var(--warn); }
+
+/* Chart cards: title + summary line ("48 artículos · en 6 departamentos"), then the chart. */
+.chart-head { margin-bottom: var(--space-4); }
+.chart-head h2 { font-size: 1.15rem; font-weight: 700; margin: 0; }
+.chart-summary { margin: var(--space-1) 0 0; }
+.chart-summary strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+
+/* Horizontal bar list (units per group, with %). */
 .bars { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-3); }
-.bars li { display: grid; grid-template-columns: minmax(90px, 40%) 1fr auto; gap: var(--space-2); align-items: center; }
+.bars li { display: grid; grid-template-columns: minmax(90px, 36%) 1fr auto; gap: var(--space-3); align-items: center; }
 .bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bar-track { height: 12px; background: var(--surface-alt); border-radius: 999px; overflow: hidden; }
-.bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
-.bar-value { font-weight: 650; min-width: 2.5ch; text-align: right; white-space: nowrap; }
+.bar-track { height: 16px; background: var(--surface-alt); border-radius: 4px; overflow: hidden; }
+.bar-fill { display: block; height: 100%; background: var(--primary); border-radius: 0 4px 4px 0; }
+.bar-value { font-weight: 650; min-width: 2.5ch; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .bar-value small, .legend-value small { font-weight: 400; }
-.kpi-label { display: flex; align-items: center; gap: var(--space-2); }
-.kpi-label .icon { color: var(--label); }
-.kpi-detail { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Segmented 100 % bar + legend (condition, availability). Segments are separated by a 2px surface gap. */
 .stackbar { display: flex; gap: 2px; height: 22px; border-radius: 6px; overflow: hidden; background: var(--surface); margin-bottom: var(--space-4); }
@@ -478,29 +510,53 @@ input:hover, select:hover, textarea:hover { border-color: var(--muted); }
 .details--compact { margin: 0; }
 
 /* Dashboard: clickable KPI tile ("Necesitan atención" → list of those articles). */
-.kpi--link { display: block; color: inherit; text-decoration: none; transition: border-color var(--motion), background-color var(--motion); }
-.kpi--link:hover { background: var(--primary-soft); border-color: var(--primary); }
-.kpi--link.kpi--warn:hover { border-left-color: var(--warn); }
+.kpi--link { color: inherit; text-decoration: none; transition: background-color var(--motion); }
+.kpi--link:hover { background: var(--primary-soft); }
+.kpi--link:focus-visible { outline-offset: -4px; }
+
+/* Red alert tile ("Necesitan atención" > 0): red icon box, soft red fill, red number. */
+.kpi--alert, .kpi--link.kpi--alert:hover { background: var(--danger-soft); }
+.kpi--alert .kpi-value { color: var(--danger); }
+.kpi--alert .kpi-icon { color: var(--danger); border-color: var(--danger); background: var(--surface); }
+/* Soft pulse: the red fill deepens and returns, 3 times, then the tile stays still. */
+.kpi--pulse { animation: kpi-pulse 1.6s ease-in-out 3; }
+@keyframes kpi-pulse {
+  50% { background-color: color-mix(in srgb, var(--danger) 24%, var(--surface)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kpi--pulse { animation: none; }
+}
+:root[data-focus-mode="on"] .kpi--pulse { animation: none; }
 .kpi-link { display: inline-block; margin-top: var(--space-2); color: var(--primary); font-weight: 650; text-decoration: underline; }
 
 /*
- * Horizontal bar chart with axes (Y = items, X = count). Same 3 columns for the rows and the X axis,
- * so ticks line up with the bars. Grid lines: one per tick interval (--intervals set by the chart).
+ * Horizontal bar chart with axes (Y = items, X = count). Rows and the X axis share the same two
+ * columns (label | plot), so ticks and dashed grid lines line up with the bars. The value is written
+ * right after each bar (the scale keeps headroom for it).
  */
-.axis-chart { --label-col: minmax(90px, 38%); --value-col: 5ch; }
-.axis-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
-.axis-bars li, .axis-x { display: grid; grid-template-columns: var(--label-col) 1fr var(--value-col); gap: var(--space-2); align-items: center; }
-.axis-track {
-  position: relative; height: 22px; border-left: 2px solid var(--muted);
-  background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(100% / var(--intervals) - 1px), var(--border) calc(100% / var(--intervals) - 1px), var(--border) calc(100% / var(--intervals)));
+.axis-chart { --label-col: clamp(80px, 30%, 200px); --col-gap: var(--space-3); }
+.axis-plot { position: relative; }
+.axis-grid { position: absolute; top: 0; bottom: 0; left: calc(var(--label-col) + var(--col-gap)); right: 0; pointer-events: none; }
+.axis-gridline { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--border); }
+.axis-bars { position: relative; list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.axis-bars li, .axis-x { display: grid; grid-template-columns: var(--label-col) 1fr; column-gap: var(--col-gap); align-items: center; }
+.axis-bars li { border-radius: var(--radius-small); }
+.axis-bars li:hover { background: color-mix(in srgb, var(--primary-soft) 60%, transparent); }
+.axis-track { position: relative; height: 26px; }
+.axis-fill { position: absolute; left: 0; top: 3px; bottom: 3px; background: var(--primary); border-radius: 0 4px 4px 0; }
+.axis-value {
+  position: absolute; top: 50%; transform: translateY(-50%); margin-left: var(--space-2);
+  font-size: 0.9rem; font-weight: 650; color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums;
 }
-.axis-fill { position: absolute; left: 0; top: 4px; bottom: 4px; background: var(--accent); border-radius: 0 4px 4px 0; min-width: 0; }
-.axis-x { margin-top: var(--space-1); }
-.axis-ticks { position: relative; height: 1.4em; border-top: 2px solid var(--muted); }
-.axis-tick { position: absolute; top: 2px; transform: translateX(-50%); font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.axis-x { margin-top: var(--space-2); }
+.axis-ticks { position: relative; height: 1.4em; }
+.axis-tick { position: absolute; top: 0; transform: translateX(-50%); font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .axis-tick:first-child { transform: none; }
 .axis-tick:last-child { transform: translateX(-100%); }
 .axis-title { margin: var(--space-1) 0 0; text-align: center; font-size: 0.85rem; color: var(--muted); }
+@media (forced-colors: active) {
+  .axis-fill, .bar-fill { forced-color-adjust: none; background: CanvasText; }
+}
 
 /*
  * Loading indicator (inventoryLoader() in core/dom.js; static copy in index.html): an inventory box
