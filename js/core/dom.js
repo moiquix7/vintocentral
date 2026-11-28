@@ -42,6 +42,8 @@ export function mount(container, ...nodes) {
 const ICON_PATHS = Object.freeze({
   home: 'M3 11l9-8 9 8M5 10v10h14V10',
   box: 'M3 7l9-4 9 4-9 4-9-4zm0 0v10l9 4 9-4V7M12 11v10',
+  layers: 'M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5M3 17.5l9 5 9-5',
+  dollar: 'M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
   tag: 'M3 12V3h9l9 9-9 9-9-9zM7.5 7.5h.01',
   pin: 'M12 21s-7-6.2-7-11.5a7 7 0 0114 0C19 14.8 12 21 12 21zM12 12a2.5 2.5 0 100-5 2.5 2.5 0 000 5z',
   file: 'M6 2h9l5 5v15H6zM14 2v6h6M9 13h8M9 17h8',

@@ -66,9 +66,9 @@ function draw(container) {
       'section',
       { class: 'kpis', 'aria-label': 'Resumen del inventario' },
       kpi('Artículos registrados', formatNumber(stats.totalRecords), { iconName: 'box' }),
-      kpi('Unidades en total', formatNumber(stats.totalUnits)),
+      kpi('Unidades en total', formatNumber(stats.totalUnits), { iconName: 'layers' }),
     ),
-    h('div', { class: 'grid-2' }, barList('Artículos por tipo (unidades)', stats.byType), barList('Artículos por ubicación (unidades)', stats.byLocation)),
+    h('div', { class: 'grid-2' }, barList('Artículos por tipo (unidades)', stats.byType, { item: ['tipo', 'tipos'] }), barList('Artículos por ubicación (unidades)', stats.byLocation, { item: ['ubicación', 'ubicaciones'] })),
     recentSection(assets, canWrite),
   );
 }

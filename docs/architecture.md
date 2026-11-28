@@ -80,7 +80,13 @@ Only **admin** and **editor** (`dashboard.view`); it is their landing page after
 - The **Necesitan atención** card is a link to `#/assets?filtro=atencion`: the article list showing
   only those articles (filter "Solo los que necesitan atención", which the user can turn off), each
   with Ver (its name) and Editar / Eliminar according to the role. `needsAttention()` lives in
-  `asset.model.js` (shared by the dashboard and the list).
+  `asset.model.js` (shared by the dashboard and the list). The list opens with the filter already
+  applied and its results loaded.
+- When at least one article needs attention, the card turns **red** (`kpi(..., { tone: 'alert' })`)
+  and pulses softly **3 times** (`pulse: true`), then stays red and still. It pulses only when the
+  Tablero opens or the number changes — not on every redraw (presence heartbeats redraw the page),
+  so it never flashes continuously. No motion with `prefers-reduced-motion` or in focus mode (the
+  red color and the number remain). With 0 articles the card keeps the normal accent color.
 - Charts: 100 % segmented bars for *Estado* and *Disponibilidad* (legend with number and %, so
   identity is never color alone) and a horizontal bar list (units) by Tipo de artículo.
 - **Artículos por departamento** and **Artículos por ubicación**: horizontal bar charts with axes —
@@ -91,6 +97,18 @@ Only **admin** and **editor** (`dashboard.view`); it is their landing page after
   names it); every bar shows its number and has a tooltip.
 - Quick links to the features the role may use (same permission list as the navigation).
 - Pure computations live in `dashboard.stats.js` and `presence.model.js` (tested).
+- **Visual style** (`shared/charts.js` + `css/components.css`, shared with Inicio):
+  - KPIs form **one strip** (a single card, thin dividers between tiles, they wrap on small screens).
+    Each tile: icon in a small rounded box, label, big value and an optional **pill**
+    (`kpi(..., { badge: { text, tone: 'good' | 'bad' | 'neutral' } })`). Pills only show figures
+    derived from the same statistics — no invented trends: *Unidades en total* → % of units
+    *Disponible*; *Necesitan atención* → % of the articles.
+  - Every chart card has a **title** and a **summary line** (bold total + muted context, e.g.
+    "**48** artículos · en 6 departamentos").
+  - Axis bar charts: thicker bars with a 4 px rounded end, **one color** (one series: no
+    alternating colors, which would suggest a meaning that does not exist), the value written
+    right after each bar, **dashed** vertical grid lines and X labels below. The scale keeps ~20 %
+    headroom (`niceScale(max × 1.25)`) so the value after the longest bar always fits.
 
 ## Connected users (`modules/presence`)
 

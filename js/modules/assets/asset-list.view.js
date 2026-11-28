@@ -3,8 +3,6 @@
  * Last column "Acciones": Editar (assets.write) and Eliminar (assets.delete, admin only); hidden for viewers.
  * `#/assets?filtro=atencion` (dashboard "Necesitan atención") opens it showing only those articles.
  */
-
-const ATTENTION_QUERY = Object.freeze({ key: 'filtro', value: 'atencion' });
 import { h, icon, mount, pageHeader } from '../../core/dom.js';
 import { session } from '../../core/session.js';
 import { AVAILABILITY, CONDITIONS } from '../../config/app-config.js';
@@ -16,6 +14,7 @@ import { EMPTY_FILTERS, SORT_OPTIONS, filterAssets, sortAssets } from './asset-f
 import { availabilityBadge, conditionBadge, confirmDeleteAsset, thumbnail } from './asset-ui.js';
 
 const PAGE_SIZE = 50;
+const ATTENTION_QUERY = Object.freeze({ key: 'filtro', value: 'atencion' });
 
 /** Filters survive navigation within the session (e.g. list → detail → back). */
 let filters = { ...EMPTY_FILTERS };
