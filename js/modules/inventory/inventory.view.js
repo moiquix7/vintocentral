@@ -5,6 +5,10 @@
  * article as verified; the "Verificado" checkbox does it for an article that needs no change.
  *
  * - Round start date: articles verified on or after it count as done (progress bar).
+ * - "Acción propuesta": a proposed action (Colocar de baja, Reparar…) and/or a comment about it.
+ * - No horizontal scroll: each row is a card whose controls wrap into as many columns as fit (CSS).
+ * - "Modo fácil" (#/inventory/easy): one question per screen (inventory-easy.view.js).
+ * - "Deshacer": a verified row can be set back to pending (asset.service.js → uncheckAsset), after a confirmation.
  * - Saves of one row are queued; unsaved values live in `drafts`, so live updates from other users
  *   never erase them, and a failed save keeps them (the row offers "Reintentar").
  * - Rows saved since the filters last changed stay listed (`keep`), so a row does not vanish from
@@ -12,11 +16,12 @@
  */
 import { h, icon, inventoryLoader, mount, pageHeader } from '../../core/dom.js';
 import { handleError } from '../../core/notify.js';
-import { AVAILABILITY, CONDITIONS, LIMITS } from '../../config/app-config.js';
+import { AVAILABILITY, CONDITIONS, LIMITS, PROPOSED_ACTIONS } from '../../config/app-config.js';
 import { field, input, select } from '../../shared/form.js';
+import { confirmDialog } from '../../shared/dialog.js';
 import { formatDateTime, formatNumber, todayIso } from '../../shared/format.js';
 import { assetStore } from '../assets/asset.store.js';
-import { checkAsset } from '../assets/asset.service.js';
+import { checkAsset, uncheckAsset } from '../assets/asset.service.js';
 import { INVENTORY_FIELDS, isUnavailable } from '../assets/asset.model.js';
 import { EMPTY_FILTERS, SORT_OPTIONS, filterAssets, sortAssets } from '../assets/asset-filter.js';
 import {
@@ -29,39 +34,36 @@ import {
   catalogsReady,
 } from '../catalogs/catalog.store.js';
 import {
+  ACTION_FILTERS,
   CHECK_STATUS,
   DEFAULT_CHECK_STATUS,
   DEFAULT_INVENTORY_SORT,
   normalizeRoundStart,
   isChecked,
   filterByCheck,
+  filterByAction,
   inventoryProgress,
   storedStatus,
   sameStatus,
 } from './inventory.model.js';
+import { loadRoundStart, saveRoundStart } from './inventory-round.store.js';
 
 const PAGE_SIZE = 50;
-const ROUND_KEY = 'vintocentral.inventoryRound';
-const COLUMNS = Object.freeze(['Artículo', 'Tipo de artículo', 'Departamento', 'Ubicación', 'Estado', 'Disponibilidad', 'Motivo / Observaciones', 'Verificado']);
+const COLUMNS = Object.freeze([
+  'Artículo',
+  'Ubicación',
+  'Estado',
+  'Disponibilidad',
+  'Motivo / Observaciones',
+  'Acción propuesta',
+  'Verificado',
+]);
+/** Fields saved on 'change' (blur or Enter for the text ones, so a save never interrupts typing). */
+const SELECT_FIELDS = Object.freeze(['locationId', 'condition', 'availability', 'proposedAction']);
+const TEXT_FIELDS = Object.freeze(['unavailableReason', 'notes', 'proposedActionNote']);
 
 /** Filters survive navigation within the session (e.g. grid → article detail → back). */
-let filters = { ...EMPTY_FILTERS, check: DEFAULT_CHECK_STATUS, sort: DEFAULT_INVENTORY_SORT };
-
-function loadRoundStart() {
-  try {
-    return normalizeRoundStart(localStorage.getItem(ROUND_KEY), todayIso());
-  } catch {
-    return todayIso();
-  }
-}
-
-function saveRoundStart(value) {
-  try {
-    localStorage.setItem(ROUND_KEY, value);
-  } catch {
-    /* storage unavailable: the date lasts until the page is reloaded */
-  }
-}
+let filters = { ...EMPTY_FILTERS, check: DEFAULT_CHECK_STATUS, action: '', sort: DEFAULT_INVENTORY_SORT };
 
 function valuesOf(controls) {
   const values = Object.fromEntries(INVENTORY_FIELDS.map((name) => [name, controls[name].value]));
@@ -102,6 +104,7 @@ export async function render(container) {
     categoryId: select(catalogOptions(categoryStore), { value: filters.categoryId, placeholder: 'Todos los departamentos', 'aria-label': 'Departamento' }),
     condition: select(CONDITIONS, { value: filters.condition, placeholder: 'Todos los estados', 'aria-label': 'Estado' }),
     availability: select(AVAILABILITY, { value: filters.availability, placeholder: 'Toda disponibilidad', 'aria-label': 'Disponibilidad' }),
+    action: select(ACTION_FILTERS, { value: filters.action, placeholder: 'Toda acción propuesta', 'aria-label': 'Acción propuesta' }),
     sort: select(SORT_OPTIONS, { value: filters.sort, 'aria-label': 'Ordenar por' }),
   };
   const summary = h('p', { class: 'muted', role: 'status' });
@@ -159,6 +162,29 @@ export async function render(container) {
     draw();
   }
 
+  /** Sets a verified article back to pending (keeps its saved values). Never while the row is saving. */
+  async function undoCheck(asset) {
+    if (queues.get(asset.id)?.running || rowState.get(asset.id) === 'saving') return;
+    const confirmed = await confirmDialog({
+      title: 'Deshacer verificación',
+      message: `"${asset.name}" volverá a quedar pendiente de verificar. Lo que ya guardó (ubicación, estado, observaciones…) no cambia. ¿Continuar?`,
+      confirmText: 'Deshacer verificación',
+    });
+    if (!confirmed || disposed) return;
+    keep.add(asset.id);
+    rowState.set(asset.id, 'saving');
+    draw();
+    try {
+      await uncheckAsset(asset.id);
+      lastSaved.textContent = `Verificación deshecha: ${asset.name}. Quedó pendiente.`;
+    } catch (error) {
+      handleError(error, 'inventory undo');
+    }
+    rowState.delete(asset.id);
+    focusTarget = { asset: asset.id, field: 'verify' };
+    draw();
+  }
+
   function statusCell(asset, controls) {
     const state = rowState.get(asset.id);
     const done = isChecked(asset, roundStart);
@@ -186,7 +212,25 @@ export async function render(container) {
         },
         'Reintentar',
       );
-    } else if (asset.checkedAt) detail = h('small', { class: 'muted block' }, formatDateTime(asset.checkedAt));
+    } else if (done) {
+      detail = h(
+        'div',
+        { class: 'stack-tight' },
+        h('small', { class: 'muted block' }, formatDateTime(asset.checkedAt)),
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'btn btn-secondary btn-small',
+            'aria-label': `Deshacer la verificación de ${asset.name}`,
+            dataset: { asset: asset.id, field: 'undo' },
+            onclick: () => undoCheck(asset),
+          },
+          icon('back'),
+          'Deshacer',
+        ),
+      );
+    } else if (asset.checkedAt) detail = h('small', { class: 'muted block' }, `Última: ${formatDateTime(asset.checkedAt)}`);
 
     return h(
       'td',
@@ -219,18 +263,29 @@ export async function render(container) {
         'aria-label': label('Observaciones'),
         dataset: data('notes'),
       }),
+      proposedAction: select(PROPOSED_ACTIONS, {
+        value: current.proposedAction,
+        placeholder: 'Ninguna',
+        'aria-label': label('Acción propuesta'),
+        dataset: data('proposedAction'),
+      }),
+      proposedActionNote: input({
+        value: current.proposedActionNote,
+        maxlength: LIMITS.asset.proposedActionNote,
+        placeholder: 'Comentario sobre la acción',
+        'aria-label': label('Comentario sobre la acción propuesta'),
+        dataset: data('proposedActionNote'),
+      }),
     };
 
     const saveIfChanged = () => {
       const values = valuesOf(controls);
       if (!sameStatus(values, drafts.get(asset.id) ?? storedStatus(asset))) save(asset, values);
     };
-    ['locationId', 'condition', 'availability'].forEach((name) => controls[name].addEventListener('change', saveIfChanged));
     controls.availability.addEventListener('change', () => {
       controls.unavailableReason.hidden = !isUnavailable(controls.availability.value);
     });
-    // Text fields: 'change' fires on blur or Enter, so a save never interrupts typing.
-    ['unavailableReason', 'notes'].forEach((name) => controls[name].addEventListener('change', saveIfChanged));
+    [...SELECT_FIELDS, ...TEXT_FIELDS].forEach((name) => controls[name].addEventListener('change', saveIfChanged));
 
     const state = rowState.get(asset.id);
     return h(
@@ -240,14 +295,13 @@ export async function render(container) {
         'td',
         { dataset: { label: 'Artículo' } },
         h('a', { href: `#/assets/${encodeURIComponent(asset.id)}`, class: 'row-link' }, asset.name),
-        asset.code ? h('small', { class: 'muted block' }, asset.code) : null,
+        h('small', { class: 'muted block' }, [asset.code, catalogLookups.typeName(asset.typeId), catalogLookups.categoryName(asset.categoryId)].filter(Boolean).join(' · ')),
       ),
-      h('td', { dataset: { label: 'Tipo de artículo' } }, catalogLookups.typeName(asset.typeId)),
-      h('td', { dataset: { label: 'Departamento' } }, catalogLookups.categoryName(asset.categoryId)),
       h('td', { dataset: { label: 'Ubicación' } }, controls.locationId),
       h('td', { dataset: { label: 'Estado' } }, controls.condition),
       h('td', { dataset: { label: 'Disponibilidad' } }, controls.availability),
       h('td', { dataset: { label: 'Motivo / Observaciones' }, class: 'col-notes' }, controls.unavailableReason, controls.notes),
+      h('td', { dataset: { label: 'Acción propuesta' }, class: 'col-notes' }, controls.proposedAction, controls.proposedActionNote),
       statusCell(asset, controls),
     );
   }
@@ -271,7 +325,8 @@ export async function render(container) {
     progressBar.value = String(progress.checked);
     progressText.textContent = `Verificados: ${formatNumber(progress.checked)} de ${formatNumber(progress.total)} (${progress.percent} %)`;
 
-    const matches = sortAssets(filterByCheck(scope, filters.check, roundStart, keep), filters.sort, catalogLookups);
+    const listed = filterByAction(filterByCheck(scope, filters.check, roundStart, keep), filters.action, keep);
+    const matches = sortAssets(listed, filters.sort, catalogLookups);
     const page = matches.slice(0, visible);
     shownIds = page.map((asset) => asset.id);
     summary.textContent = `Mostrando ${page.length} de ${matches.length}`;
@@ -294,7 +349,7 @@ export async function render(container) {
       results,
       h(
         'div',
-        { class: 'table-scroll' },
+        { class: 'inventory-grid' },
         h(
           'table',
           { class: 'table responsive-table inventory-table' },
@@ -332,7 +387,7 @@ export async function render(container) {
 
   mount(
     container,
-    pageHeader('Toma de inventario'),
+    pageHeader('Toma de inventario', h('a', { href: '#/inventory/easy', class: 'btn btn-primary btn-easy' }, icon('check'), 'Modo fácil')),
     h(
       'section',
       { class: 'card inventory-round', 'aria-label': 'Avance' },
@@ -343,7 +398,9 @@ export async function render(container) {
         h('strong', null, 'los cambios se guardan solos'),
         '. Si el artículo está bien y no necesita cambios, marque ',
         h('strong', null, 'Verificado'),
-        '.',
+        '. Si necesita algo (reparar, dar de baja, donar…), elíjalo en ',
+        h('strong', null, 'Acción propuesta'),
+        ' o escriba un comentario.',
       ),
       h(
         'div',

@@ -1,6 +1,7 @@
 /**
- * Login page ("don't make me think"): church photo background, logo, church name (h1),
- * system name, two fields with icons, one primary button and the password-reset link.
+ * Login page ("don't make me think"): church photo background, logo, church name (small line) and the
+ * highlighted title "Control de Inventario" (h1), two fields with icons, one primary button and the
+ * password-reset link.
  * Appearance is not offered here: it uses the preferences already saved in the browser.
  * A signed-in user is forwarded to their home page.
  * Below the form: who to contact for an account (APP.adminContact).
@@ -34,8 +35,8 @@ function passwordToggle(password) {
 }
 
 /**
- * "¿No tiene cuenta?" box: the system administrator and how to reach them.
- * Email and phone come from APP.adminContact; an empty value is not shown.
+ * "¿No tiene cuenta?" box: the system administrator, with her phone number and email written out
+ * (tel: / mailto: links, plus WhatsApp). They come from APP.adminContact; an empty value is not shown.
  */
 function adminContactBox() {
   const { name, role, email, phone } = APP.adminContact;
@@ -118,8 +119,8 @@ export async function render(container) {
         'section',
         { class: 'card login-card' },
         h('img', { src: APP.logo, alt: `Logo de la ${APP.churchName}`, class: 'login-logo', width: '84', height: '84' }),
-        h('h1', { tabindex: '-1' }, APP.churchFullName),
-        h('p', { class: 'login-subtitle' }, APP.systemName),
+        h('p', { class: 'login-church' }, APP.churchFullName),
+        h('h1', { tabindex: '-1', class: 'login-title' }, h('span', { class: 'login-title-mark' }, APP.systemName)),
         form,
         adminContactBox(),
       ),

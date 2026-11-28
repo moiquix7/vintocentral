@@ -1,163 +1,139 @@
 /**
- * User administration (admin only): create accounts, change role and department, activate/deactivate,
- * reset password. The department pre-fills "Departamento" when the user registers an article.
+ * User administration list (#/users, admin only).
+ * Columns: Usuario, Nombre (link to the detail), Rol, Estado and a last "Acciones" column
+ * (Editar, Desactivar / Reactivar, Restablecer contraseña). Search, filters (rol, estado) and sorting
+ * run on the loaded list (user-filter.js). "Nuevo usuario" opens the create dialog.
  */
 import { h, icon, inventoryLoader, mount, pageHeader } from '../../core/dom.js';
-import { session } from '../../core/session.js';
-import { notify, handleError } from '../../core/notify.js';
-import { LIMITS, ROLES } from '../../config/app-config.js';
-import { field, input, select, runSubmit } from '../../shared/form.js';
-import { confirmDialog } from '../../shared/dialog.js';
+import { handleError } from '../../core/notify.js';
+import { ROLES } from '../../config/app-config.js';
+import { select } from '../../shared/form.js';
 import { avatar } from '../../shared/avatar.js';
-import { listUsers, createUser, updateUserAccess, sendPasswordReset } from './user.service.js';
-import { categoryStore, catalogOptions, catalogsReady } from '../catalogs/catalog.store.js';
+import { formatNumber } from '../../shared/format.js';
+import { listUsers } from './user.service.js';
+import { EMPTY_USER_FILTERS, USER_SORT_OPTIONS, USER_STATUS, filterUsers, sortUsers } from './user-filter.js';
+import { isSelf, openCreateUserDialog, statusBadge, userActionButtons } from './user-actions.js';
+import { catalogsReady } from '../catalogs/catalog.store.js';
 
-const NO_DEPARTMENT = 'Sin departamento';
+const COLUMNS = Object.freeze(['Usuario', 'Nombre', 'Rol', 'Estado', 'Acciones']);
 
-/** Department dropdown ("Departamentos" are stored in `categories`). */
-function departmentSelect(value, props = {}) {
-  return select(catalogOptions(categoryStore), { value: value ?? '', placeholder: NO_DEPARTMENT, ...props });
-}
+/** Filters survive navigation within the session (e.g. list → detail → back). */
+let filters = { ...EMPTY_USER_FILTERS };
 
-const L = LIMITS.user;
+const detailHref = (user) => `#/users/${encodeURIComponent(user.uid)}`;
 
-function createForm(onCreated) {
-  const controls = {
-    displayName: input({ maxlength: L.displayName, autocomplete: 'off' }),
-    username: input({ maxlength: L.usernameMax, autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false' }),
-    email: input({ type: 'email', maxlength: L.email, autocomplete: 'off' }),
-    role: select(ROLES, { value: 'viewer' }),
-    departmentId: departmentSelect(''),
-    password: input({ type: 'text', minlength: L.minPassword, maxlength: L.maxPassword, autocomplete: 'new-password' }),
-  };
-  const submit = h('button', { type: 'submit', class: 'btn btn-primary' }, icon('plus'), 'Crear usuario');
-  const form = h(
-    'form',
-    { class: 'card form-grid', novalidate: true, 'aria-label': 'Nuevo usuario' },
-    h('h2', { class: 'field--wide' }, 'Nuevo usuario'),
-    field({ label: 'Nombre', name: 'displayName', control: controls.displayName, required: true }),
-    field({ label: 'Nombre de usuario', name: 'username', control: controls.username, required: true, hint: 'Con este nombre ingresará. Ej.: maria.lopez' }),
-    field({ label: 'Correo electrónico', name: 'email', control: controls.email, required: true, hint: 'Para recuperar la contraseña.' }),
-    field({ label: 'Rol', name: 'role', control: controls.role, required: true, hint: 'Consulta: solo ve artículos y reportes. Editor: tablero, registra y modifica. Administrador: todo.' }),
-    field({ label: 'Departamento', name: 'departmentId', control: controls.departmentId, hint: 'Opcional. Se propone al registrar un artículo (puede cambiarse).' }),
-    field({ label: 'Contraseña temporal', name: 'password', control: controls.password, required: true, hint: `Mínimo ${L.minPassword} caracteres. Entréguela a la persona y pídale cambiarla.` }),
-    h('div', { class: 'field--wide button-row' }, submit),
-  );
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const values = Object.fromEntries(Object.entries(controls).map(([k, c]) => [k, c.value]));
-    if (await runSubmit(form, submit, () => createUser(values), 'Creando…')) {
-      notify.success('Usuario creado.');
-      form.reset();
-      onCreated();
-    }
-  });
-  return form;
-}
-
-function userRow(user, reload) {
-  const isSelf = user.uid === session.user.uid;
-  const role = select(ROLES, { value: user.role, 'aria-label': `Rol de ${user.displayName}`, disabled: isSelf });
-  const active = h('input', { type: 'checkbox', class: 'switch', checked: user.active === true, disabled: isSelf, 'aria-label': `Cuenta activa de ${user.displayName}` });
-  // An admin may also set their own department (role and active stay locked for themself).
-  const department = departmentSelect(user.departmentId, { 'aria-label': `Departamento de ${user.displayName}` });
-  const current = () => ({ role: role.value, active: active.checked, departmentId: department.value });
-
-  async function apply(next) {
-    role.disabled = true;
-    active.disabled = true;
-    department.disabled = true;
-    try {
-      await updateUserAccess(user.uid, next);
-      notify.success('Acceso actualizado.');
-    } catch (error) {
-      handleError(error, 'update user');
-    }
-    reload();
-  }
-
-  role.addEventListener('change', () => apply(current()));
-  department.addEventListener('change', () => apply(current()));
-  active.addEventListener('change', async () => {
-    if (!active.checked) {
-      const confirmed = await confirmDialog({
-        title: 'Desactivar cuenta',
-        message: `${user.displayName} ya no podrá ingresar al inventario. ¿Continuar?`,
-        confirmText: 'Desactivar',
-        danger: true,
-      });
-      if (!confirmed) {
-        active.checked = true;
-        return;
-      }
-    }
-    apply(current());
-  });
-
-  const reset = h('button', { type: 'button', class: 'btn btn-secondary btn-small' }, icon('key'), 'Restablecer contraseña');
-  reset.addEventListener('click', async () => {
-    reset.disabled = true;
-    try {
-      await sendPasswordReset(user.email);
-      notify.success(`Se envió un correo a ${user.email} para cambiar la contraseña.`);
-    } catch (error) {
-      handleError(error, 'reset password');
-    } finally {
-      reset.disabled = false;
-    }
-  });
-
+function row(user, reload) {
   return h(
     'tr',
     null,
+    h('td', { dataset: { label: 'Usuario' } }, user.username ? `@${user.username}` : '—'),
     h(
       'td',
       { dataset: { label: 'Nombre' } },
-      h('span', { class: 'person' }, avatar(user, { size: 32 }), h('span', null, user.displayName, isSelf ? h('small', { class: 'muted block' }, '(usted)') : null)),
+      h(
+        'a',
+        { href: detailHref(user), class: 'row-link person' },
+        avatar(user, { size: 32 }),
+        h('span', null, user.displayName, isSelf(user) ? h('small', { class: 'muted block' }, '(usted)') : null),
+      ),
     ),
-    h('td', { dataset: { label: 'Usuario' } }, user.username ? `@${user.username}` : '—'),
-    h('td', { dataset: { label: 'Correo' } }, user.email),
-    h('td', { dataset: { label: 'Rol' } }, role),
-    h('td', { dataset: { label: 'Departamento' } }, department),
-    h('td', { dataset: { label: 'Activo' } }, active),
-    h('td', { dataset: { label: 'Acciones' } }, reset),
+    h('td', { dataset: { label: 'Rol' } }, ROLES[user.role] ?? '—'),
+    h('td', { dataset: { label: 'Estado' } }, statusBadge(user)),
+    h('td', { class: 'col-actions', dataset: { label: 'Acciones' } }, userActionButtons(user, reload)),
   );
 }
 
 export async function render(container) {
   await catalogsReady();
-  const columns = ['Nombre', 'Usuario', 'Correo', 'Rol', 'Departamento', 'Activo', 'Acciones'];
-  const tableBody = h('tbody', null, h('tr', null, h('td', { colspan: String(columns.length) }, inventoryLoader({ label: 'Cargando usuarios…' }))));
+  let users = [];
+  let loaded = false;
   let disposed = false;
+
+  const search = h('input', {
+    type: 'search',
+    class: 'search-input',
+    placeholder: 'Buscar por nombre, usuario o correo…',
+    'aria-label': 'Buscar usuarios',
+    maxlength: 80,
+    value: filters.text,
+  });
+  const selects = {
+    role: select(ROLES, { value: filters.role, placeholder: 'Todos los roles', 'aria-label': 'Rol' }),
+    status: select(USER_STATUS, { value: filters.status, placeholder: 'Activos e inactivos', 'aria-label': 'Estado' }),
+    sort: select(USER_SORT_OPTIONS, { value: filters.sort, 'aria-label': 'Ordenar por' }),
+  };
+  const summary = h('p', { class: 'muted', role: 'status' });
+  const results = h('section', { class: 'card' }, inventoryLoader({ label: 'Cargando usuarios…' }));
+
+  function draw() {
+    if (disposed || !loaded) return;
+    const shown = sortUsers(filterUsers(users, filters), filters.sort);
+    const active = users.filter((user) => user.active === true).length;
+    summary.textContent = `Mostrando ${formatNumber(shown.length)} de ${formatNumber(users.length)} usuarios · ${formatNumber(active)} activos`;
+    if (!shown.length) {
+      mount(results, h('p', { class: 'empty-state' }, users.length ? 'Ningún usuario coincide con la búsqueda.' : 'Todavía no hay usuarios.'));
+      return;
+    }
+    mount(
+      results,
+      h(
+        'div',
+        { class: 'table-scroll' },
+        h(
+          'table',
+          { class: 'table responsive-table' },
+          h('caption', { class: 'visually-hidden' }, 'Usuarios registrados'),
+          h('thead', null, h('tr', null, COLUMNS.map((text) => h('th', { scope: 'col' }, text)))),
+          h('tbody', null, shown.map((user) => row(user, reload))),
+        ),
+      ),
+    );
+  }
 
   async function reload() {
     try {
-      const users = await listUsers();
+      const list = await listUsers();
       if (disposed) return;
-      mount(tableBody, users.map((user) => userRow(user, reload)));
+      users = list;
+      loaded = true;
+      draw();
     } catch (error) {
       handleError(error, 'list users');
+      if (!disposed && !loaded) mount(results, h('p', { class: 'empty-state' }, 'No se pudo cargar la lista de usuarios. Recargue la página.'));
     }
   }
 
+  const update = (patch) => {
+    filters = { ...filters, ...patch };
+    draw();
+  };
+  let debounce = 0;
+  search.addEventListener('input', () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => update({ text: search.value }), 200);
+  });
+  Object.entries(selects).forEach(([name, control]) => control.addEventListener('change', () => update({ [name]: control.value })));
+
+  const add = h('button', { type: 'button', class: 'btn btn-primary' }, icon('plus'), 'Nuevo usuario');
+  add.addEventListener('click', async () => {
+    if (await openCreateUserDialog()) reload();
+  });
+
   mount(
     container,
-    pageHeader('Usuarios'),
-    createForm(reload),
+    pageHeader('Usuarios', add),
     h(
       'section',
-      { class: 'card' },
-      h('h2', null, 'Usuarios registrados'),
-      h(
-        'table',
-        { class: 'table responsive-table' },
-        h('thead', null, h('tr', null, columns.map((t) => h('th', { scope: 'col' }, t)))),
-        tableBody,
-      ),
+      { class: 'card toolbar', 'aria-label': 'Búsqueda, filtros y orden' },
+      h('div', { class: 'search-box' }, icon('search'), search),
+      h('div', { class: 'filters' }, Object.values(selects)),
     ),
+    summary,
+    results,
   );
   await reload();
   return () => {
     disposed = true;
+    clearTimeout(debounce);
   };
 }

@@ -1,4 +1,7 @@
-/** "Mi perfil": photo, name, username, password and appearance. Available to every signed-in user. */
+/**
+ * "Mi perfil": photo, name, username, phone, email, password and appearance. Available to every signed-in
+ * user. Role and department are shown read-only (only the administrator changes them).
+ */
 import { h, icon, mount, pageHeader } from '../../core/dom.js';
 import { session } from '../../core/session.js';
 import { notify, handleError } from '../../core/notify.js';
@@ -8,7 +11,8 @@ import { avatar } from '../../shared/avatar.js';
 import { compressImage } from '../../shared/image.js';
 import { isCameraSupported, takePhoto } from '../../shared/camera.js';
 import { appearanceControls } from '../../shared/appearance.js';
-import { updateProfile, changePassword } from './profile.service.js';
+import { updateProfile, changePassword, requestEmailChange } from './profile.service.js';
+import { catalogLookups, catalogsReady } from '../catalogs/catalog.store.js';
 
 const L = LIMITS.user;
 
@@ -78,6 +82,8 @@ function photoEditor(profile) {
 function profileForm(profile, photo) {
   const displayName = input({ maxlength: L.displayName, value: profile.displayName, autocomplete: 'name' });
   const username = input({ maxlength: L.usernameMax, value: profile.username, autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false' });
+  const phone = input({ type: 'tel', inputmode: 'tel', maxlength: L.phone, value: profile.phone, autocomplete: 'tel', placeholder: 'Ej.: +591 70012345' });
+  const department = profile.departmentId ? catalogLookups.categoryName(profile.departmentId) : 'Sin departamento';
   const submit = h('button', { type: 'submit', class: 'btn btn-primary' }, 'Guardar perfil');
   const form = h(
     'form',
@@ -92,15 +98,47 @@ function profileForm(profile, photo) {
       required: true,
       hint: profile.username ? 'Con este nombre ingresa al sistema.' : 'Aún no tiene uno. Elija uno para ingresar sin escribir su correo.',
     }),
-    h('p', { class: 'field--wide muted' }, `Correo: ${profile.email} · Rol: ${ROLES[profile.role]}`),
+    field({ label: 'Teléfono', name: 'phone', control: phone, hint: 'Opcional. Para que el administrador pueda comunicarse con usted.' }),
+    h('p', { class: 'field--wide muted' }, `Rol: ${ROLES[profile.role]} · Departamento: ${department} (los cambia el administrador)`),
     h('div', { class: 'field--wide button-row form-actions' }, submit),
   );
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const ok = await runSubmit(form, submit, () =>
-      updateProfile({ displayName: displayName.value, username: username.value }, photo.changes()),
+      updateProfile({ displayName: displayName.value, username: username.value, phone: phone.value }, photo.changes()),
     );
     if (ok) notify.success('Perfil actualizado.');
+  });
+  return form;
+}
+
+/** Email: a verification link goes to the new address; the change applies once it is opened. */
+function emailForm(profile) {
+  const newEmail = input({ type: 'email', maxlength: L.email, autocomplete: 'email', placeholder: 'nuevo@correo.com' });
+  const emailPassword = input({ type: 'password', autocomplete: 'current-password', maxlength: L.maxPassword });
+  const notice = h('p', { class: 'notice', role: 'status', hidden: true });
+  const submit = h('button', { type: 'submit', class: 'btn btn-primary' }, icon('mail'), 'Cambiar correo');
+  const form = h(
+    'form',
+    { class: 'card form-grid', novalidate: true, 'aria-label': 'Cambiar correo electrónico' },
+    h('h2', { class: 'field--wide' }, 'Correo electrónico'),
+    h('p', { class: 'field--wide' }, 'Correo actual: ', h('strong', null, profile.email)),
+    field({ label: 'Nuevo correo', name: 'newEmail', control: newEmail, required: true, hint: 'Le enviaremos un enlace a ese correo para confirmarlo.' }),
+    field({ label: 'Contraseña actual', name: 'emailPassword', control: emailPassword, required: true, hint: 'Por seguridad.' }),
+    h('div', { class: 'field--wide' }, notice),
+    h('div', { class: 'field--wide button-row form-actions' }, submit),
+  );
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    let sentTo = '';
+    const ok = await runSubmit(form, submit, async () => {
+      sentTo = await requestEmailChange({ newEmail: newEmail.value, currentPassword: emailPassword.value });
+    }, 'Enviando…');
+    if (!ok) return;
+    form.reset();
+    notice.textContent = `Le enviamos un enlace a ${sentTo}. Ábralo para confirmar el cambio. Después, el sistema le pedirá ingresar de nuevo: la primera vez use su correo nuevo (no su nombre de usuario).`;
+    notice.hidden = false;
+    notify.success('Revise su correo nuevo para confirmar el cambio.');
   });
   return form;
 }
@@ -133,6 +171,7 @@ function passwordForm() {
 }
 
 export async function render(container) {
+  await catalogsReady();
   const profile = session.profile;
   const photo = photoEditor(profile);
   const appearance = appearanceControls();
@@ -140,6 +179,7 @@ export async function render(container) {
     container,
     pageHeader('Mi perfil'),
     profileForm(profile, photo),
+    emailForm(profile),
     passwordForm(),
     h('section', { class: 'card' }, h('h2', null, 'Apariencia'), appearance.node),
   );

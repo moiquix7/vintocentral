@@ -94,3 +94,17 @@ test('history: new fields; a missing switch (old article) equals "No"', () => {
     { field: 'insured', from: 'No', to: 'Sí' },
   ]);
 });
+
+test('undo verification: described as one explicit change, never by the automatic diff', async () => {
+  const { uncheckChange, sanitizeHistoryEntry, HISTORY_ACTIONS } = await import('../js/modules/history/history.model.js');
+  const change = uncheckChange({ checkedAt: new Date(2026, 10, 20, 10, 15) });
+  assert.equal(change.field, 'checkedAt');
+  assert.equal(change.to, 'Sin verificar');
+  assert.notEqual(change.from, 'Sin verificar');
+  assert.equal(uncheckChange({}).from, 'Sin verificar');
+  assert.equal(HISTORY_ACTIONS.uncheck, 'Deshizo la verificación');
+  const entry = sanitizeHistoryEntry({ assetId: 'a', assetName: 'Silla', action: 'uncheck', changes: [change], by: 'u', byName: 'Luz' });
+  assert.equal(entry.action, 'uncheck');
+  assert.deepEqual(entry.changes, [change], 'checkedAt is an accepted history field');
+  assert.deepEqual(diffAssets({ checkedAt: new Date() }, { checkedAt: null }, lookups), []);
+});

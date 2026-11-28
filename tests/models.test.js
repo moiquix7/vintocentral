@@ -160,8 +160,8 @@ test('usernames are normalized and validated', () => {
 });
 
 test('profile update and password change validation', () => {
-  const profile = sanitizeProfileUpdate({ displayName: ' Ana ', username: 'Ana Pérez', role: 'admin' });
-  assert.deepEqual(profile, { displayName: 'Ana', username: 'ana.perez' });
+  const profile = sanitizeProfileUpdate({ displayName: ' Ana ', username: 'Ana Pérez', phone: ' +591  70012345 ', role: 'admin' });
+  assert.deepEqual(profile, { displayName: 'Ana', username: 'ana.perez', phone: '+591 70012345' });
   assert.deepEqual(validateProfileUpdate(profile), {});
   assert.ok(validateProfileUpdate(sanitizeProfileUpdate({})).displayName);
 

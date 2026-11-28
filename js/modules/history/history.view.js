@@ -2,6 +2,7 @@
  * "Historial" (#/history, admin and editor): latest changes of all articles, newest first, for
  * auditing. Text filter (article or user) and action filter run on the loaded entries;
  * "Cargar más" loads the next LIMITS.history.pageSize entries.
+ * `#/history?texto=<text>` opens it with that search (used by the user detail: "Ver sus cambios").
  */
 import { h, icon, inventoryLoader, mount, pageHeader } from '../../core/dom.js';
 import { handleError } from '../../core/notify.js';
@@ -16,8 +17,12 @@ import { timeline } from './history.timeline.js';
 /** Filters survive navigation within the session (e.g. history → article → back). */
 let filters = { text: '', action: '' };
 
-export async function render(container) {
+const TEXT_QUERY = 'texto';
+
+export async function render(container, { query } = {}) {
   await assetStore.whenReady();
+  const requested = query?.get(TEXT_QUERY);
+  if (requested) filters = { ...filters, text: requested.slice(0, 80) };
 
   let count = LIMITS.history.pageSize;
   let entries = [];

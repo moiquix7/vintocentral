@@ -1,17 +1,23 @@
 /** Display formatting (locale and currency come from app-config). */
 import { APP } from '../config/app-config.js';
 
-const currencyFormat = new Intl.NumberFormat(APP.locale, {
-  style: 'currency',
-  currency: APP.currency,
-  maximumFractionDigits: 2,
-});
+/**
+ * Amounts follow CLAUDE.md "CURRENCY": symbol in front, decimal point and always two decimals
+ * ("Bs. 1,250.50"). Fixed digits (en-US) so every browser shows the same text.
+ */
+const amountFormat = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const numberFormat = new Intl.NumberFormat(APP.locale);
 const dateFormat = new Intl.DateTimeFormat(APP.locale, { dateStyle: 'medium' });
 const dateTimeFormat = new Intl.DateTimeFormat(APP.locale, { dateStyle: 'medium', timeStyle: 'short' });
 
+/** 100 → "Bs. 100.00"; 1250.5 → "Bs. 1,250.50"; not a number → "—". */
 export function formatCurrency(value) {
-  return Number.isFinite(value) ? currencyFormat.format(value) : '—';
+  return Number.isFinite(value) ? `${APP.currencySymbol} ${amountFormat.format(value)}` : '—';
+}
+
+/** Value for an amount input: 150.5 → "150.50"; empty/invalid → "". */
+export function amountInputValue(value) {
+  return Number.isFinite(value) ? value.toFixed(2) : '';
 }
 
 export function formatNumber(value) {

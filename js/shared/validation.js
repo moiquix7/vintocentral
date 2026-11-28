@@ -27,6 +27,13 @@ export function toNumber(value) {
   return /^-?\d+(\.\d+)?$/.test(normalized) ? Number(normalized) : Number.NaN;
 }
 
+/** True when a finite number has no more than two decimals (amounts in Bolivianos). */
+export function hasAtMostTwoDecimals(value) {
+  if (!Number.isFinite(value)) return false;
+  const cents = value * 100;
+  return Math.abs(cents - Math.round(cents)) < 1e-6;
+}
+
 export function isValidEmail(value) {
   return typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }

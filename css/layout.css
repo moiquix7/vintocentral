@@ -89,8 +89,15 @@
   backdrop-filter: blur(6px);
   box-shadow: 0 10px 40px rgb(20 30 30 / 22%);
 }
-.login-card h1 { font-size: 1.3rem; line-height: 1.3; text-wrap: balance; margin-bottom: var(--space-2); }
-.login-subtitle { margin: 0; color: var(--primary); font-size: 1.1rem; font-weight: 650; letter-spacing: 0.02em; }
+.login-church { margin: 0 0 var(--space-2); color: var(--muted); font-size: 1rem; font-weight: 600; line-height: 1.35; text-wrap: balance; }
+/* "Control de Inventario": the highlighted title (palette color + soft marker underline). */
+.login-card h1.login-title { margin: 0; font-size: clamp(1.7rem, 6vw, 2.1rem); line-height: 1.2; font-weight: 800; color: var(--primary); letter-spacing: 0.01em; }
+.login-title-mark {
+  padding: 0 0.15em;
+  background: linear-gradient(transparent 62%, var(--primary-soft) 62%);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
 .login-card form { text-align: left; margin-top: var(--space-5); }
 .login-logo { margin: 0 auto var(--space-3); object-fit: contain; }
 .login-forgot { justify-self: center; }

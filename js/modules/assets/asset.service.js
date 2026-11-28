@@ -13,6 +13,7 @@ import {
   getDoc,
   writeBatch,
   serverTimestamp,
+  deleteField,
   storageRef,
   uploadBytes,
   getDownloadURL,
@@ -32,7 +33,7 @@ import {
 import { assetStore } from './asset.store.js';
 import { catalogLookups } from '../catalogs/catalog.store.js';
 import { addHistoryToBatch } from '../history/history.service.js';
-import { diffAssets } from '../history/history.model.js';
+import { diffAssets, uncheckChange } from '../history/history.model.js';
 
 /**
  * Sanitises, validates and refuses duplicates (same name in the same location, checked against the
@@ -193,6 +194,48 @@ export async function checkAsset(id, input) {
   } catch (error) {
     throw toAppError(error);
   }
+}
+
+/**
+ * Undoes the inventory verification: removes `checkedAt`, so the article is pending again. The values saved
+ * during the inventory-taking (location, condition…) are kept. Recorded as an "uncheck" history entry.
+ * @param {string} id
+ */
+export async function uncheckAsset(id) {
+  try {
+    const before = await requireAsset(id);
+    if (!before.checkedAt) throw new AppError('Este artículo no está verificado.', { code: 'app/not-checked' });
+    const batch = writeBatch(db);
+    batch.update(doc(db, COLLECTIONS.assets, id), { checkedAt: deleteField(), updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+    addHistoryToBatch(batch, { assetId: id, assetName: before.name, action: 'uncheck', changes: [uncheckChange(before)], ...author() });
+    await batch.commit();
+  } catch (error) {
+    throw toAppError(error);
+  }
+}
+
+/**
+ * Removes one photo from an article (article detail → photo viewer): the article is updated without it,
+ * with a history entry, and then the file is removed from Storage (best effort).
+ * @param {string} id article id
+ * @param {string} path Storage path of the photo
+ */
+export async function removeAssetPhoto(id, path) {
+  let removed = null;
+  try {
+    const before = await requireAsset(id);
+    const photos = sanitizePhotos(before.photos);
+    removed = photos.find((photo) => photo.path === path) ?? null;
+    if (!removed) throw new AppError('La foto ya no existe en este artículo.', { code: 'app/not-found' });
+    const data = { photos: photos.filter((photo) => photo.path !== path) };
+    const batch = writeBatch(db);
+    batch.update(doc(db, COLLECTIONS.assets, id), { ...data, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+    addHistoryToBatch(batch, { assetId: id, assetName: before.name, action: 'update', changes: diffAssets(before, data, catalogLookups), ...author() });
+    await batch.commit();
+  } catch (error) {
+    throw toAppError(error);
+  }
+  await removePhotos([removed]);
 }
 
 /**

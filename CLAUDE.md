@@ -18,7 +18,11 @@ A web developer senior with 25 years the experience.
 - The application will provide a user-friendly interface for managing assets, including features such as search, filter, and sort.
 - The application will support multiple users with different roles and permissions, allowing for secure access to the inventory data.
 
-  
+ 
+## CURRENCY
+ - the currency used in the application is Bolivianos (Bs.) and the language is Spanish, but the code must be in English.
+ - the amount must be in numbers with two decimal places, and the currency symbol must be displayed in front of the amount (Bs. 100.00).
+ 
 ## Rules
  
  - apply documentation before every implementation or change
@@ -28,7 +32,7 @@ A web developer senior with 25 years the experience.
   - every error, must be controlled.
  - if the route does not exist, make callback to the login page.
  - build a yml file to deploy the application in github page, and configure the firebase.json file to allow the SPA to work properly.
- - 
+
 
 ## Architecture
 modular architecture
@@ -42,7 +46,9 @@ HTML, JavaScript,css, firebase, firebase authentication, firebase firestore, fir
 ## INTERFACE STYLE
 - soft colors, simple
 - eye-friendly.
-- Minimalist design, with a focus on usability and accessibility.
+- senior-friendly design, with a focus on usability and accessibility.
+- stepper forms with wizard-style navigation, with clear instructions and progress indicators.
+- Minimalist design.
 - ADHD-friendly mode
 - Versatile design, with the ability to switch between light and dark modes.
 - automatic adaptation to different screen sizes and devices, including desktops, tablets, and smartphones.
@@ -70,7 +76,20 @@ HTML, JavaScript,css, firebase, firebase authentication, firebase firestore, fir
 ### LOGIN PAGE
 - The login page will allow users to sign in with their username and password, and will enforce role-based access control to ensure that users only have access to the features and data that they are authorized to view.
 - when user is logged in, the system will redirect to the dashboard page, where they can view key indicators on the inventory status and access the different features of the application based on their role and permissions.
-- Let user know that must contact to the administrator to create an account if they don't have one, and provide a link to the password reset page if they forget their password. (Display name of the secretary "Luz Andrea Guachalla" of the church who is the administrator of the system, and provide a link to contact them via email or phone.)
+- Let user know that must contact to the administrator to create an account if they don't have one, and provide a link to the password reset page if they forget their password. (Display name of the secretary "Luz Andrea Guachalla" of the church who is the administrator of the system, and display its phone number and email address for contact).
+- highlight the title "Control de Inventario".
+
+### USERS PAGE
+- The users page will allow administrators to manage user accounts, including creating new accounts, changing roles, deactivating accounts, and sending password reset emails.
+- The page will display a list of users in a grid/table format, with columns for username, name, role, and status (active/inactive).
+- The grid will have the last column with buttons to edit and deactivate the user account (admin only), and will provide options to filter and sort the users by username, name, role, and status.
+- The user will be able to click on a user account to view its details, including username, name, role, status, and any associated assets or records.
+- Allow the administrator to change the role of a user account, and provide options to deactivate or reactivate the account as needed.
+
+### PROFILE PAGE
+- The profile page will allow users to view and update their personal information, including their name, username, password, and profile picture, email and phone number.
+
+
 
 ### HOME PAGE
 - The home page will provide an overview of the inventory status, including key indicators such as total assets, assets by category, and assets by location. 
@@ -90,8 +109,22 @@ HTML, JavaScript,css, firebase, firebase authentication, firebase firestore, fir
 - Users will be able to update the status of each asset by selecting the appropriate values from dropdown menus or checkboxes, and the system will automatically save the changes to the database.
 - The page will also provide a progress indicator to show the number of assets that have been verified and updated, and will allow users to filter and sort the assets by category, department, location, condition, and availability.
 - also allow users let know the reason why the assets is not available, and provide a field to enter comments or notes about the asset's status.
+- Users will be able to mark assets as verified, and the system will track the verification status of each asset in the database.
+- Users will be able to propose actions: "Colocar de baja", "Reparar", "Reemplazar", "Donar", "Vender" or simply write a commnetary about the action and the system will track the proposed actions for each asset in the database.
+- allow undo the verification of an asset, and the system will update the verification status accordingly.
+- 
+#### grid
+  - Mostrar todas las opciones en la pantalla, sin hacer scroll de modo horizontal, facil de ver y de registrar.
 
-### RECORDS PAGE
+### Button Modo facil
+- aplica WCAG normas de diseño senior-friendly, con un diseño simple y minimalista, con colores suaves y contrastes adecuados, con tipografía legible y botones grandes y fáciles de presionar.
+- una pregunta por pantalla.
+- muestra indicador de progreso.
+- botones para seguir y volver
+- al final dar una confirmacion de "Anotado!"
+  
+
+  ### RECORDS PAGE
 1. The records page will be available just administrators and editors.
 2.display three options buttons with navegation to the following: pages:
   2.1. "Tipo de Articulo" (asset type): open a page that displays a list of asset types, with options to create, edit, and delete asset types (admin only).
@@ -105,6 +138,7 @@ HTML, JavaScript,css, firebase, firebase authentication, firebase firestore, fir
 - The page will display a list of assets in a grid/table format, with columns for asset name, category, department, location, condition, and availability.
 - The grid will have the last column  with buttons to edit and delete the asset (admin and editors only), and will provide options to filter and sort the assets by category, department, location, condition, and availability.
 - The user will be able to click on an asset to view its details, including its name, description, category, department, location, condition, availability, and any associated images or documents.
+- Allow maximize the image to see it in full screen, and provide options to download or delete the images (admin and editors only).
 
 
 #### REGISTRAR ARTICULO
@@ -118,9 +152,15 @@ HTML, JavaScript,css, firebase, firebase authentication, firebase firestore, fir
 8. Fields to fill: Code, name, description,category (tipo articulo),brand,model,Nro Serie,"Empotrado" (checkbox),"Asegurado"(checkbox),department, location, condition, availability, reason for unavailability (if applicable), tags (optional), and up to 4 images (from gallery or camera).
 
 ## REPORTS PAGE
+
+### Asset report
 - The reports page will allow users to generate PDF reports on the inventory status, including asset details. (with image or without imnage), location, and condition.
 
-### REPORT DESIGN
+### Taking-inventory report
+- The taking-inventory report will allow users to generate PDF reports on the inventory-taking process, including the status of assets, their location, condition, and availability. The report will also include a summary of the number of assets that have been verified and updated, as well as any proposed actions for assets that need attention.
+- It will provide two options to sign: one for the user logged in, and one leave in blank.
+
+## REPORT DESIGN (every report)
 - The report will include a header with the church name and logo located to the right, and report title, department and report date and reported by located to the left, as well as a footer with the date and page number.
 - The report will display the asset details in a minimalist table format, with columns : Acquisition date, asset name,brand, model,Numero de Serie,Quantity,condition.
 - at the end of the report, three places to sign: one for the elder ("Anciano del Departamento"), one for incoming leader, and one for "Lider Saliente"  of the church.

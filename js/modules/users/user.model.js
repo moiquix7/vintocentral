@@ -1,5 +1,5 @@
 /** User profile model. Pure. Must match `validUser()` / `validUsername()` in firestore.rules. */
-import { LIMITS, ROLES, USERNAME_PATTERN } from '../../config/app-config.js';
+import { LIMITS, PHONE_PATTERN, ROLES, USERNAME_PATTERN } from '../../config/app-config.js';
 import { cleanText, foldText, isValidEmail } from '../../shared/validation.js';
 
 const L = LIMITS.user;
@@ -21,6 +21,19 @@ export function validateUsername(username) {
   if (!USERNAME_PATTERN.test(username)) {
     return 'Use solo letras, números, punto, guion o guion bajo (sin espacios).';
   }
+  return null;
+}
+
+/** "+591  700-12345 " → "+591 700-12345" (trimmed, single spaces, cut to the limit). */
+export function normalizePhone(value) {
+  return cleanText(String(value ?? ''), L.phone);
+}
+
+/** @returns {string|null} error message, or null when valid (empty = no phone) */
+export function validatePhone(phone) {
+  if (!phone) return null;
+  if (!PHONE_PATTERN.test(phone)) return 'Use solo números, espacios y los signos + - ( ).';
+  if (phone.replace(/\D/g, '').length < 7) return 'El número debe tener al menos 7 dígitos.';
   return null;
 }
 
@@ -57,11 +70,12 @@ export function validateNewUser(user) {
   return errors;
 }
 
-/** Fields a user may change on their own profile. */
+/** Fields a user may change on their own profile (the email has its own flow: validateEmailChange). */
 export function sanitizeProfileUpdate(input = {}) {
   return {
     displayName: cleanText(input.displayName, L.displayName),
     username: normalizeUsername(input.username),
+    phone: normalizePhone(input.phone),
   };
 }
 
@@ -70,7 +84,22 @@ export function validateProfileUpdate(profile) {
   if (!profile.displayName) errors.displayName = 'Escriba su nombre.';
   const usernameError = validateUsername(profile.username);
   if (usernameError) errors.username = usernameError;
+  const phoneError = validatePhone(profile.phone);
+  if (phoneError) errors.phone = phoneError;
   return errors;
+}
+
+/**
+ * New email for the signed-in user (a verification link is sent to it).
+ * @returns {{ email: string, errors: Record<string, string> }}
+ */
+export function validateEmailChange({ newEmail, currentEmail, currentPassword }) {
+  const email = cleanText(newEmail, L.email).toLowerCase();
+  const errors = {};
+  if (!isValidEmail(email)) errors.newEmail = 'Escriba un correo electrónico válido.';
+  else if (email === String(currentEmail ?? '').toLowerCase()) errors.newEmail = 'Ese ya es su correo actual.';
+  if (!currentPassword) errors.emailPassword = 'Escriba su contraseña actual.';
+  return { email, errors };
 }
 
 export function validatePasswordChange({ currentPassword, newPassword, confirmPassword }) {

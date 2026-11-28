@@ -33,6 +33,10 @@ service cloud.firestore {
     function validUsername(name) {
       return name is string && name.matches('^[a-z0-9._-]{3,30}$');
     }
+    // Phone: optional, digits, spaces and + - ( ) (PHONE_PATTERN in app-config.js).
+    function validPhone(value) {
+      return value is string && value.matches('^[0-9+() -]{0,20}$');
+    }
     function usernameOwnedBy(name, uid) {
       return getAfter(/databases/$(database)/documents/usernames/$(name)).data.uid == uid;
     }
@@ -42,7 +46,7 @@ service cloud.firestore {
             || (data.photoPath is string && data.photoPath.matches('profiles/' + uid + '/[^/]+')));
     }
     function validUser(data, uid) {
-      return data.keys().hasOnly(['email', 'username', 'displayName', 'role', 'active', 'departmentId', 'photoUrl', 'photoPath',
+      return data.keys().hasOnly(['email', 'username', 'displayName', 'role', 'active', 'departmentId', 'phone', 'photoUrl', 'photoPath',
                                   'createdAt', 'updatedAt', 'updatedBy'])
         && data.keys().hasAll(['email', 'displayName', 'role', 'active', 'createdAt', 'updatedAt', 'updatedBy'])
         && isText(data.email, 3, 254)
@@ -51,18 +55,22 @@ service cloud.firestore {
         && data.role in ['admin', 'editor', 'viewer']
         && data.active is bool
         && (!('departmentId' in data) || isText(data.departmentId, 0, 64))
+        && (!('phone' in data) || validPhone(data.phone))
         && data.createdAt is timestamp
         && validPhoto(data, uid)
         && stamped(data);
     }
-    // A user may edit only their own name, username and photo — never role or active.
+    // A user may edit only their own name, username, phone and photo — never role, active or department.
+    // The email may only become the address Firebase Auth already has (sync after a verified change).
     function validSelfUpdate(uid) {
       let data = request.resource.data;
       let changed = data.diff(resource.data).affectedKeys();
       return signedIn() && request.auth.uid == uid && hasActiveProfile()
-        && changed.hasOnly(['displayName', 'username', 'photoUrl', 'photoPath', 'updatedAt', 'updatedBy'])
+        && changed.hasOnly(['displayName', 'username', 'phone', 'email', 'photoUrl', 'photoPath', 'updatedAt', 'updatedBy'])
         && isText(data.displayName, 1, 80)
         && (!('username' in changed) || (validUsername(data.username) && usernameOwnedBy(data.username, uid)))
+        && (!('phone' in data) || validPhone(data.phone))
+        && (!('email' in changed) || (isText(data.email, 3, 254) && data.email == request.auth.token.email))
         && validPhoto(data, uid)
         && stamped(data);
     }
@@ -98,7 +106,11 @@ service cloud.firestore {
             || (hasActiveProfile()
                 && request.resource.data.uid == request.auth.uid
                 && request.resource.data.email == request.auth.token.email));
-      allow update: if false;
+      // Only the owner, keeping uid, to copy their new Auth email (after a verified email change).
+      allow update: if signedIn() && resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'email'])
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == request.auth.token.email;
       allow delete: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
     }
 
@@ -106,10 +118,10 @@ service cloud.firestore {
     // typeId ("Tipo de artículo"), availability, unavailableReason, notes and checkedAt are optional: articles
     // registered before they existed must still be editable. The app always writes typeId and availability.
     // brand, model, serialNumber (Marca, Modelo, Nro. de serie), builtIn (Empotrado) and insured (Asegurado)
-    // are optional for the same reason.
+    // are optional for the same reason, and so are proposedAction / proposedActionNote (inventory-taking).
     function validAsset(data) {
       return data.keys().hasOnly(['code', 'name', 'description', 'brand', 'model', 'serialNumber', 'builtIn', 'insured', 'typeId', 'categoryId', 'locationId', 'condition',
-                                  'availability', 'unavailableReason', 'notes',
+                                  'availability', 'unavailableReason', 'notes', 'proposedAction', 'proposedActionNote',
                                   'tags', 'acquisitionDate', 'value', 'quantity', 'photos', 'checkedAt',
                                   'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
         && data.keys().hasAll(['code', 'name', 'description', 'categoryId', 'locationId', 'condition',
@@ -127,9 +139,11 @@ service cloud.firestore {
         && isText(data.categoryId, 1, 64)
         && isText(data.locationId, 1, 64)
         && data.condition in ['new', 'good', 'fair', 'poor', 'out_of_service']
-        && (!('availability' in data) || data.availability in ['available', 'in_use', 'loaned', 'in_repair', 'missing'])
+        && (!('availability' in data) || data.availability in ['available', 'in_use', 'loaned', 'in_repair', 'missing', 'unknown'])
         && (!('unavailableReason' in data) || isText(data.unavailableReason, 0, 200))
         && (!('notes' in data) || isText(data.notes, 0, 500))
+        && (!('proposedAction' in data) || data.proposedAction in ['', 'dispose', 'repair', 'replace', 'donate', 'sell'])
+        && (!('proposedActionNote' in data) || isText(data.proposedActionNote, 0, 200))
         && (!('checkedAt' in data) || data.checkedAt is timestamp)
         && data.tags is list && data.tags.size() <= 10
         && isText(data.acquisitionDate, 0, 10)
@@ -145,18 +159,19 @@ service cloud.firestore {
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.createdAt == request.time
         && !('checkedAt' in request.resource.data);
-      // checkedAt (inventory verification) may only stay as it was or become "now".
+      // checkedAt (inventory verification) may only stay as it was, become "now", or be removed (undo).
       allow update: if canEdit() && validAsset(request.resource.data)
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.createdAt == resource.data.createdAt
         && (request.resource.data.get('checkedAt', null) == resource.data.get('checkedAt', null)
-            || request.resource.data.get('checkedAt', null) == request.time);
+            || request.resource.data.get('checkedAt', null) == request.time
+            || !('checkedAt' in request.resource.data));
       allow delete: if isAdmin();
     }
 
     // ---------- Change history of articles ("Historial") ----------
     // Immutable audit trail. An entry is accepted only inside the same batch as a real article write:
-    // create/update/check → the article's updatedAt after the batch is this request's time;
+    // create/update/check/uncheck → the article's updatedAt after the batch is this request's time;
     // delete → the article no longer exists after the batch. Each change { field, from, to } is
     // validated by history.model.js (rules cannot loop over a list).
     function assetPath(assetId) {
@@ -167,7 +182,7 @@ service cloud.firestore {
         && data.keys().hasAll(['assetId', 'assetName', 'action', 'changes', 'by', 'byName', 'at'])
         && isText(data.assetId, 1, 64)
         && isText(data.assetName, 1, 120)
-        && data.action in ['create', 'update', 'check', 'delete']
+        && data.action in ['create', 'update', 'check', 'uncheck', 'delete']
         && data.changes is list && data.changes.size() <= 20
         && data.by == request.auth.uid
         && isText(data.byName, 1, 80)

@@ -119,6 +119,7 @@ function watchProfile(user, onSettled) {
         username: typeof data.username === 'string' ? data.username : '',
         displayName: data.displayName || data.username || data.email,
         role: data.role,
+        phone: typeof data.phone === 'string' ? data.phone : '',
         photoUrl: typeof data.photoUrl === 'string' ? data.photoUrl : '',
         photoPath: typeof data.photoPath === 'string' ? data.photoPath : '',
         departmentId: typeof data.departmentId === 'string' ? data.departmentId : '',

@@ -24,6 +24,7 @@ export {
   EmailAuthProvider,
   reauthenticateWithCredential,
   updatePassword,
+  verifyBeforeUpdateEmail,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 
 export {
